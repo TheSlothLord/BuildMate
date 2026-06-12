@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-ssr
+*.local
+.vite
+.DS_Store
+release
+
+# build caches
+*.tsbuildinfo
+
+# local tooling / editor
+.claude/
+*.log
+.vite-dev.log
+.vite-err.log

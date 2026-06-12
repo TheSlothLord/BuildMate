@@ -39,6 +39,7 @@ export interface Deck {
   spacing: mm; // backing-board (joist) spacing, centre-to-centre — per deck
   firstOffset: mm; // edge-board inset: centre of the edge backing boards, this far in from each edge
   noSeams: boolean; // force single full-length boards per row (no butt joints)
+  borderBoards: number; // picture-frame border: number of perimeter rings (0 = none)
 }
 
 export interface Gaps {
@@ -111,14 +112,28 @@ export interface Row {
   segments: Segment[];
 }
 
+/** A perimeter (picture-frame) board, in deck coordinates. */
+export interface BorderBoard {
+  name: string;
+  lengthMm: mm;
+  x: mm; // top-left, deck coords
+  y: mm;
+  w: mm; // drawn width  (= board length or plank width depending on orientation)
+  h: mm; // drawn height
+  barId: string;
+  reusedOffcut: boolean;
+}
+
 export interface DeckLayout {
   deckId: string;
   label: string;
-  lengthMm: mm;
+  lengthMm: mm; // full deck (incl. any border)
   widthMm: mm;
   plankWidthMm: mm; // full board width, for drawing rips / overhangs
-  joists: mm[]; // all joist positions (for drawing the grid)
-  rows: Row[];
+  fieldInsetMm: mm; // border depth: the planking field is inset this far on all sides
+  borderBoards: BorderBoard[];
+  joists: mm[]; // field-local joist positions (offset by fieldInsetMm when drawn)
+  rows: Row[]; // field-local rows
   warnings: string[];
 }
 

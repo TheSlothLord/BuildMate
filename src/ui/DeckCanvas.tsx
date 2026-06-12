@@ -12,20 +12,25 @@ export function DeckCanvas({ layout, endGap }: Props) {
   const padX = 8;
   const padTop = 8;
   const pw = layout.plankWidthMm;
+  const fi = layout.fieldInsetMm || 0; // border depth
+  const fieldL = layout.lengthMm - 2 * fi;
+  const fieldW = layout.widthMm - 2 * fi;
 
-  // The drawing can extend past the deck (rip cut-off / overhanging extra board).
-  const contentBottom = layout.rows.reduce((b, r) => {
+  // field origin in px, and helpers to map field-local mm -> px
+  const fox = padX + fi * s;
+  const foy = padTop + fi * s;
+  const fieldBottomY = foy + fieldW * s;
+
+  // The drawing can extend past the field (rip cut-off / overhanging extra board).
+  const fieldContentBottom = layout.rows.reduce((b, r) => {
     const extent = r.kind === 'rip' || r.kind === 'extra' ? r.yStartMm + pw : r.yStartMm + r.widthMm;
     return Math.max(b, extent);
-  }, layout.widthMm);
+  }, fieldW);
+  const contentBottom = Math.max(layout.widthMm, fi + fieldContentBottom);
 
   const w = layout.lengthMm * s + padX * 2;
   const h = contentBottom * s + padTop * 2;
   const seamGapPx = Math.max(1.5, endGap * s);
-  const deckEdgeY = padTop + layout.widthMm * s; // bottom edge of the actual deck
-  const X0 = padX;
-  const X1 = padX + layout.lengthMm * s;
-
   const planks = layout.rows.filter((r) => r.kind !== 'gap');
 
   return (
@@ -37,49 +42,62 @@ export function DeckCanvas({ layout, endGap }: Props) {
       aria-label={`Plank layout for ${layout.label}`}
     >
       {/* deck outline */}
-      <rect x={X0} y={padTop} width={layout.lengthMm * s} height={layout.widthMm * s} fill="none" stroke="var(--line)" />
+      <rect x={padX} y={padTop} width={layout.lengthMm * s} height={layout.widthMm * s} fill="none" stroke="var(--line)" />
+
+      {/* perimeter border boards */}
+      {layout.borderBoards.map((bb, i) => {
+        const x = padX + bb.x * s;
+        const y = padTop + bb.y * s;
+        const bw = bb.w * s;
+        const bh = bb.h * s;
+        const vertical = bb.h > bb.w;
+        const thin = Math.min(bw, bh);
+        const fs = Math.min(11, thin * 0.5);
+        const showName = thin > 9 && Math.max(bw, bh) > bb.name.length * fs * 0.62;
+        const cx = x + bw / 2;
+        const cy = y + bh / 2;
+        return (
+          <g key={`bb${i}`}>
+            <rect x={x} y={y} width={bw} height={bh} rx={1}
+              fill={bb.reusedOffcut ? 'var(--plank-alt)' : 'var(--plank)'} stroke="var(--plank-edge)" strokeWidth={0.6}>
+              <title>{bb.name} (border) · {bb.lengthMm} mm · stock {bb.barId}{bb.reusedOffcut ? ' (offcut)' : ''}</title>
+            </rect>
+            {showName && (
+              <text x={cx} y={cy} fontSize={fs} fill="var(--plank-text)" textAnchor="middle" dominantBaseline="central"
+                pointerEvents="none" transform={vertical ? `rotate(-90 ${cx} ${cy})` : undefined}>
+                {bb.name}
+              </text>
+            )}
+          </g>
+        );
+      })}
 
       {/* plank rows (everything except gaps) */}
       {planks.map((row) => {
-        const y = padTop + row.yStartMm * s;
+        const y = foy + row.yStartMm * s;
         const rh = row.widthMm * s;
         return (
           <g key={`r${row.index}`}>
             {row.segments.map((seg, i) => {
               const x0 = seg.startMm;
-              const x1 = i < row.segments.length - 1 ? row.segments[i + 1].startMm : layout.lengthMm;
-              const left = padX + x0 * s + (i === 0 ? 0 : seamGapPx / 2);
-              const right = padX + x1 * s - (i === row.segments.length - 1 ? 0 : seamGapPx / 2);
-              const w = Math.max(0, right - left);
+              const x1 = i < row.segments.length - 1 ? row.segments[i + 1].startMm : fieldL;
+              const left = fox + x0 * s + (i === 0 ? 0 : seamGapPx / 2);
+              const right = fox + x1 * s - (i === row.segments.length - 1 ? 0 : seamGapPx / 2);
+              const segW = Math.max(0, right - left);
               const fs = Math.min(11, (rh - 1) * 0.5);
-              const showName = rh > 9 && w > seg.name.length * fs * 0.62;
+              const showName = rh > 9 && segW > seg.name.length * fs * 0.62;
               return (
                 <g key={`s${i}`}>
-                  <rect
-                    x={left}
-                    y={y + 0.5}
-                    width={w}
-                    height={rh - 1}
-                    rx={1}
-                    fill={seg.reusedOffcut ? 'var(--plank-alt)' : 'var(--plank)'}
-                    stroke="var(--plank-edge)"
-                    strokeWidth={0.6}
-                  >
+                  <rect x={left} y={y + 0.5} width={segW} height={rh - 1} rx={1}
+                    fill={seg.reusedOffcut ? 'var(--plank-alt)' : 'var(--plank)'} stroke="var(--plank-edge)" strokeWidth={0.6}>
                     <title>
                       {seg.name} · {seg.lengthMm} mm · {seg.bays} bay{seg.bays === 1 ? '' : 's'} · stock {seg.barId}
                       {seg.reusedOffcut ? ' (offcut)' : ''}
                     </title>
                   </rect>
                   {showName && (
-                    <text
-                      x={(left + right) / 2}
-                      y={y + 0.5 + (rh - 1) / 2}
-                      fontSize={fs}
-                      fill="var(--plank-text)"
-                      textAnchor="middle"
-                      dominantBaseline="central"
-                      pointerEvents="none"
-                    >
+                    <text x={(left + right) / 2} y={y + 0.5 + (rh - 1) / 2} fontSize={fs} fill="var(--plank-text)"
+                      textAnchor="middle" dominantBaseline="central" pointerEvents="none">
                       {seg.name}
                     </text>
                   )}
@@ -90,29 +108,31 @@ export function DeckCanvas({ layout, endGap }: Props) {
         );
       })}
 
-      {/* width-fit overlays: rip cut-off, extra overhang + deck edge, gap placeholder */}
-      {layout.rows.map((row) => <EdgeOverlay key={`o${row.index}`} row={row} s={s} padTop={padTop} pw={pw} X0={X0} X1={X1} deckEdgeY={deckEdgeY} />)}
+      {/* width-fit overlays: rip cut-off, extra overhang + edge, gap placeholder */}
+      {layout.rows.map((row) => (
+        <EdgeOverlay key={`o${row.index}`} row={row} s={s} foy={foy} pw={pw} X0={fox} X1={fox + fieldL * s} fieldBottomY={fieldBottomY} />
+      ))}
 
-      {/* backing boards (joists) — across the deck area only */}
+      {/* backing boards (joists) — across the field area */}
       {layout.joists.map((j, i) => {
-        const x = padX + j * s;
+        const x = fox + j * s;
         return (
           <g key={`j${i}`}>
-            <line x1={x} x2={x} y1={padTop} y2={deckEdgeY} stroke="var(--joist)" strokeWidth={1.6} strokeDasharray="7 5" strokeOpacity={0.9}>
-              <title>Backing board @ {Math.round(j)} mm</title>
+            <line x1={x} x2={x} y1={foy} y2={fieldBottomY} stroke="var(--joist)" strokeWidth={1.6} strokeDasharray="7 5" strokeOpacity={0.9}>
+              <title>Backing board @ {Math.round(j)} mm (field)</title>
             </line>
-            <circle cx={x} cy={padTop} r={2.6} fill="var(--joist-pin)" />
-            <circle cx={x} cy={deckEdgeY} r={2.6} fill="var(--joist-pin)" />
+            <circle cx={x} cy={foy} r={2.6} fill="var(--joist-pin)" />
+            <circle cx={x} cy={fieldBottomY} r={2.6} fill="var(--joist-pin)" />
           </g>
         );
       })}
 
-      {/* seams — drawn last so they sit on top of the backing boards */}
+      {/* seams — on top of the backing boards */}
       {planks.map((row) => {
-        const y = padTop + row.yStartMm * s;
+        const y = foy + row.yStartMm * s;
         const rh = row.widthMm * s;
         return row.seams.map((sx, i) => (
-          <line key={`sm${row.index}-${i}`} x1={padX + sx * s} x2={padX + sx * s} y1={y + 0.5} y2={y + rh - 0.5} stroke="var(--seam)" strokeWidth={3.4} strokeLinecap="round" />
+          <line key={`sm${row.index}-${i}`} x1={fox + sx * s} x2={fox + sx * s} y1={y + 0.5} y2={y + rh - 0.5} stroke="var(--seam)" strokeWidth={3.4} strokeLinecap="round" />
         ));
       })}
     </svg>
@@ -120,61 +140,41 @@ export function DeckCanvas({ layout, endGap }: Props) {
 }
 
 function EdgeOverlay({
-  row,
-  s,
-  padTop,
-  pw,
-  X0,
-  X1,
-  deckEdgeY,
+  row, s, foy, pw, X0, X1, fieldBottomY,
 }: {
-  row: Row;
-  s: number;
-  padTop: number;
-  pw: number;
-  X0: number;
-  X1: number;
-  deckEdgeY: number;
+  row: Row; s: number; foy: number; pw: number; X0: number; X1: number; fieldBottomY: number;
 }) {
-  const y = padTop + row.yStartMm * s;
+  const y = foy + row.yStartMm * s;
   const fadeFill = 'var(--muted)';
 
   if (row.kind === 'rip') {
-    // The board occupies row.widthMm; the discarded strip runs up to the full plank width.
     const cutTop = y + row.widthMm * s;
     const cutH = (pw - row.widthMm) * s;
     return (
-      <g>
-        <rect x={X0} y={cutTop} width={X1 - X0} height={Math.max(0, cutH)} fill={fadeFill} fillOpacity={0.2} stroke={fadeFill} strokeOpacity={0.5} strokeDasharray="4 3" strokeWidth={0.8}>
-          <title>Cut off ~{Math.round(pw - row.widthMm)} mm (ripped to {Math.round(row.widthMm)} mm wide)</title>
-        </rect>
-      </g>
+      <rect x={X0} y={cutTop} width={X1 - X0} height={Math.max(0, cutH)} fill={fadeFill} fillOpacity={0.2} stroke={fadeFill} strokeOpacity={0.5} strokeDasharray="4 3" strokeWidth={0.8}>
+        <title>Cut off ~{Math.round(pw - row.widthMm)} mm (ripped to {Math.round(row.widthMm)} mm wide)</title>
+      </rect>
     );
   }
-
   if (row.kind === 'extra') {
-    // Full board overhangs the deck; fade the part beyond the deck edge and mark the edge.
     const boardBottom = y + pw * s;
     return (
       <g>
-        <rect x={X0} y={deckEdgeY} width={X1 - X0} height={Math.max(0, boardBottom - deckEdgeY)} fill={fadeFill} fillOpacity={0.2}>
-          <title>Overhang ~{Math.round((boardBottom - deckEdgeY) / s)} mm beyond the deck edge</title>
+        <rect x={X0} y={fieldBottomY} width={X1 - X0} height={Math.max(0, boardBottom - fieldBottomY)} fill={fadeFill} fillOpacity={0.2}>
+          <title>Overhang ~{Math.round((boardBottom - fieldBottomY) / s)} mm beyond the field edge</title>
         </rect>
-        <line x1={X0} x2={X1} y1={deckEdgeY} y2={deckEdgeY} stroke="var(--ink)" strokeWidth={1.4} strokeDasharray="5 3">
-          <title>Deck edge</title>
+        <line x1={X0} x2={X1} y1={fieldBottomY} y2={fieldBottomY} stroke="var(--ink)" strokeWidth={1.4} strokeDasharray="5 3">
+          <title>Field edge</title>
         </line>
       </g>
     );
   }
-
   if (row.kind === 'gap') {
-    // No board — a faded placeholder showing where one would have gone.
     return (
       <rect x={X0} y={y} width={X1 - X0} height={row.widthMm * s} fill={fadeFill} fillOpacity={0.14} stroke={fadeFill} strokeOpacity={0.5} strokeDasharray="4 3" strokeWidth={0.8}>
         <title>No board here ({Math.round(row.widthMm)} mm uncovered)</title>
       </rect>
     );
   }
-
   return null;
 }

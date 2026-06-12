@@ -29,7 +29,7 @@ const isNative = Capacitor.isNativePlatform();
 function normalizeProject(data: Partial<Project>): Project {
   const deckBase = (i: number): Deck => ({
     id: `deck${i + 1}`, label: `Deck ${i + 1}`, length: 4000, width: 3000,
-    spacing: 600, firstOffset: defaultProject.decks[0].firstOffset, noSeams: false,
+    spacing: 600, firstOffset: defaultProject.decks[0].firstOffset, noSeams: false, borderBoards: 0,
   });
   const srcDecks = Array.isArray(data.decks) && data.decks.length ? data.decks : defaultProject.decks;
   const decks: Deck[] = srcDecks.map((d, i) => ({ ...deckBase(i), ...d }));
@@ -117,7 +117,7 @@ export function App() {
   const updateDeck = (i: number, p: Partial<Deck>) =>
     patch({ decks: project.decks.map((d, idx) => (idx === i ? { ...d, ...p } : d)) });
   const addDeck = () =>
-    patch({ decks: [...project.decks, { id: `deck${Date.now()}`, label: `Deck ${project.decks.length + 1}`, length: 4000, width: 3000, spacing: 600, firstOffset: defaultProject.decks[0].firstOffset, noSeams: false }] });
+    patch({ decks: [...project.decks, { id: `deck${Date.now()}`, label: `Deck ${project.decks.length + 1}`, length: 4000, width: 3000, spacing: 600, firstOffset: defaultProject.decks[0].firstOffset, noSeams: false, borderBoards: 0 }] });
   const removeDeck = (i: number) => {
     if (!window.confirm(`Delete deck "${project.decks[i]?.label}"? This can't be undone.`)) return;
     patch({ decks: project.decks.filter((_, idx) => idx !== i) });
@@ -199,6 +199,7 @@ export function App() {
             <Field label="No seams (single boards)" hint="For short decks: lay one full-length board per row with no butt joints. Each board must be at least as long as the deck; board spacing is then ignored for the layout.">
               <input type="checkbox" checked={d.noSeams} onChange={(e) => updateDeck(i, { noSeams: e.target.checked })} />
             </Field>
+            <Num label="Border boards" hint="Picture-frame border: number of decking boards run around the whole deck perimeter (0 = none). The planking field shrinks to fit inside the border." value={d.borderBoards} onChange={(v) => updateDeck(i, { borderBoards: Math.max(0, Math.round(v)) })} />
             <button className="btn secondary" style={{ fontSize: 12, padding: 6 }} disabled={d.noSeams} onClick={() => autoFitSpacing(i)} title="Set the board spacing to the largest value at or below the current one that splits the deck length into equal bays.">⚙ Auto-fit even spacing</button>
             {project.decks.length > 1 && (
               <button className="btn secondary" onClick={() => removeDeck(i)} style={{ fontSize: 12, padding: 6 }}>Remove deck</button>

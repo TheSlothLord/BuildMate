@@ -3,6 +3,7 @@
 
 import type {
   BomLine,
+  BorderBoard,
   CutInstruction,
   DeckLayout,
   Project,
@@ -47,40 +48,54 @@ export function optimize(project: Project): Result {
   const demand: DemandPiece[] = [];
   // Keep a handle from each demand id back to its Segment so we can attach the bar.
   const segIndex = new Map<string, Segment>();
+  const borderIndex = new Map<string, BorderBoard>();
 
   for (let deckIndex = 0; deckIndex < decks.length; deckIndex++) {
     const deck = decks[deckIndex];
     const deckLetter = deckLabel(deckIndex);
-    const joists = joistPositions(deck, backingBoardWidth);
-    const seams = legalSeams(deck, backingBoardWidth);
-    const slots = rowSlots(deck, plank.width, gaps, widthFit);
     const deckWarnings: string[] = [];
+
+    // Framed border: N rings of boards around the perimeter; the planking field
+    // shrinks by the border depth on all four sides.
+    const N = Math.max(0, Math.floor(deck.borderBoards || 0));
+    let bd = N > 0 ? N * plank.width + N * gaps.sideGap : 0;
+    if (bd > 0 && (deck.length - 2 * bd < plank.width || deck.width - 2 * bd < plank.width)) {
+      deckWarnings.push(
+        `"${deck.label}": ${N} border board(s) leave no room for the planking field — reduce the border count.`,
+      );
+      bd = 0;
+    }
+    const field = bd > 0 ? { ...deck, length: round(deck.length - 2 * bd), width: round(deck.width - 2 * bd) } : deck;
+
+    const joists = joistPositions(field, backingBoardWidth);
+    const seams = legalSeams(field, backingBoardWidth);
+    const slots = rowSlots(field, plank.width, gaps, widthFit);
 
     // Friendly, deck-level diagnostics — computed BEFORE the expensive candidate
     // enumeration so a bad value (e.g. a tiny spacing) can't blow up the engine.
     const MAX_SEAMS = 600;
-    const fullPlankFits = stockLengths.length > 0 && deck.length - gaps.endGap <= maxUsable;
-    const seamlessFits = stockLengths.length > 0 && deck.length <= maxUsable;
+    const fullPlankFits = stockLengths.length > 0 && field.length - gaps.endGap <= maxUsable;
+    const seamlessFits = stockLengths.length > 0 && field.length <= maxUsable;
     let guard = stockLengths.length === 0; // global message already added
     if (guard) {
       // no stock — message already added globally
-    } else if (deck.noSeams) {
+    } else if (field.noSeams) {
       // Seamless decks ignore the joist grid for layout; they only need a plank
-      // long enough to span the whole deck.
+      // long enough to span the whole field.
       if (!seamlessFits) {
         deckWarnings.push(
-          `"${deck.label}": "No seams" is on, but the deck is ${deck.length} mm long — longer than your longest plank (${maxStock} mm). Turn off "No seams" or add a longer stock length.`,
+          `"${deck.label}": "No seams" is on, but the planking field is ${field.length} mm long — longer than your longest plank (${maxStock} mm). Turn off "No seams" or add a longer stock length.`,
         );
         guard = true;
       }
-    } else if (deck.spacing <= 0) {
+    } else if (field.spacing <= 0) {
       deckWarnings.push(
         `"${deck.label}": enter a backing-board spacing greater than 0 so seams have a board to land on.`,
       );
       guard = true;
     } else if (seams.length > MAX_SEAMS) {
       deckWarnings.push(
-        `"${deck.label}": a ${deck.spacing} mm spacing creates ${seams.length} seam positions on a ${deck.length} mm deck — too many to lay out. Increase the board spacing.`,
+        `"${deck.label}": a ${field.spacing} mm spacing creates ${seams.length} seam positions on a ${field.length} mm field — too many to lay out. Increase the board spacing.`,
       );
       guard = true;
     } else if (seams.length === 0 && !fullPlankFits) {
@@ -92,9 +107,9 @@ export function optimize(project: Project): Result {
 
     const candidatesPerRow: RowCandidate[][] = slots.map((slot) => {
       if (guard || slot.kind === 'gap') return []; // gap rows are intentionally empty
-      if (deck.noSeams) return [{ seams: [] as number[], cutLengths: [deck.length], estWaste: 0 }];
+      if (field.noSeams) return [{ seams: [] as number[], cutLengths: [field.length], estWaste: 0 }];
       return generateRowCandidates({
-        length: deck.length,
+        length: field.length,
         legalSeams: seams,
         endGap: gaps.endGap,
         minPieceLength: stagger.minPieceLength,
@@ -113,7 +128,7 @@ export function optimize(project: Project): Result {
       });
     }
 
-    const selections = chooseLayout(candidatesPerRow, stagger, rng, deck.length);
+    const selections = chooseLayout(candidatesPerRow, stagger, rng, field.length);
 
     const rows: Row[] = selections.map((sel, r) => {
       const slot = slots[r];
@@ -128,13 +143,13 @@ export function optimize(project: Project): Result {
           segments: [],
         };
       }
-      const boundaries = [0, ...sel.seams, deck.length];
+      const boundaries = [0, ...sel.seams, field.length];
       const segments: Segment[] = [];
       for (let i = 0; i < boundaries.length - 1; i++) {
         const startPos = boundaries[i];
         const endPos = boundaries[i + 1];
         const lengthMm = sel.cutLengths[i] ?? round(endPos - startPos);
-        const bays = deck.spacing > 0 ? Math.max(1, Math.round((endPos - startPos) / deck.spacing)) : 1;
+        const bays = field.spacing > 0 ? Math.max(1, Math.round((endPos - startPos) / field.spacing)) : 1;
         const seg: Segment = {
           name: `${deckLetter}(${r + 1},${i + 1})`,
           startMm: round(startPos),
@@ -160,12 +175,60 @@ export function optimize(project: Project): Result {
       };
     });
 
+    // Perimeter (picture-frame) border boards, in full-deck coordinates.
+    // A side longer than a stock plank is split into butt-jointed pieces.
+    const borderBoards: BorderBoard[] = [];
+    if (bd > 0) {
+      const pw = plank.width;
+      const step = pw + gaps.sideGap;
+      const splitLen = (len: number): number[] => {
+        if (maxUsable <= 0 || len <= maxUsable) return [round(len)];
+        const k = Math.ceil(len / maxUsable);
+        return Array.from({ length: k }, () => round((len - (k - 1) * gaps.endGap) / k));
+      };
+      const addBoard = (base: string, idKey: string, x: number, y: number, cross: number, len: number, horizontal: boolean) => {
+        const pieces = splitLen(len);
+        let cursor = horizontal ? x : y;
+        pieces.forEach((plen, pi) => {
+          const name = pieces.length > 1 ? `${base}.${pi + 1}` : base;
+          const id = `${deck.id}#F#${idKey}#${pi}`;
+          const bb: BorderBoard = {
+            name,
+            lengthMm: plen,
+            x: round(horizontal ? cursor : x),
+            y: round(horizontal ? y : cursor),
+            w: round(horizontal ? plen : cross),
+            h: round(horizontal ? cross : plen),
+            barId: '',
+            reusedOffcut: false,
+          };
+          borderBoards.push(bb);
+          demand.push({ id, length: plen, label: name });
+          borderIndex.set(id, bb);
+          cursor += plen + gaps.endGap;
+        });
+      };
+      for (let ring = 0; ring < N; ring++) {
+        const o = ring * step;
+        const longLen = deck.length - 2 * o; // top & bottom run the full (inset) length
+        const sideLen = deck.width - 2 * o - 2 * pw; // left & right butt between them
+        addBoard(`${deckLetter}·F${ring + 1}T`, `${ring}T`, o, o, pw, longLen, true);
+        addBoard(`${deckLetter}·F${ring + 1}B`, `${ring}B`, o, deck.width - o - pw, pw, longLen, true);
+        if (sideLen > 0) {
+          addBoard(`${deckLetter}·F${ring + 1}L`, `${ring}L`, o, o + pw, pw, sideLen, false);
+          addBoard(`${deckLetter}·F${ring + 1}R`, `${ring}R`, deck.length - o - pw, o + pw, pw, sideLen, false);
+        }
+      }
+    }
+
     layouts.push({
       deckId: deck.id,
       label: deck.label,
       lengthMm: deck.length,
       widthMm: deck.width,
       plankWidthMm: plank.width,
+      fieldInsetMm: bd,
+      borderBoards,
       joists,
       rows,
       warnings: deckWarnings,
@@ -177,10 +240,10 @@ export function optimize(project: Project): Result {
   const pack = packCutStock(demand, stockOptions, cut);
   warnings.push(...pack.warnings);
   for (const [id, place] of Object.entries(pack.placement)) {
-    const seg = segIndex.get(id);
-    if (seg) {
-      seg.barId = place.barId;
-      seg.reusedOffcut = place.reusedOffcut;
+    const target = segIndex.get(id) ?? borderIndex.get(id);
+    if (target) {
+      target.barId = place.barId;
+      target.reusedOffcut = place.reusedOffcut;
     }
   }
 

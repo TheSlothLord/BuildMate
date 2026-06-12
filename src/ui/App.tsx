@@ -224,10 +224,8 @@ export function App() {
             <Field label="No seams (single boards)" hint="For short decks: lay one full-length board per row with no butt joints. Each board must be at least as long as the deck; board spacing is then ignored for the layout.">
               <input type="checkbox" checked={d.noSeams} onChange={(e) => updateDeck(i, { noSeams: e.target.checked })} />
             </Field>
-            {d.shape === 'rect' && (
-              <Num label="Border boards" hint="Picture-frame border: number of decking boards run around the whole deck perimeter (0 = none). The planking field shrinks to fit inside the border." value={d.borderBoards} onChange={(v) => updateDeck(i, { borderBoards: Math.max(0, Math.round(v)) })} />
-            )}
-            {d.shape === 'rect' && d.borderBoards > 0 && (
+            <Num label="Border boards" hint="Picture-frame border: number of decking boards run around the whole deck perimeter (0 = none). The planking field shrinks to fit inside the border. On an L-shape the frame follows the full outline, including the notch corner." value={d.borderBoards} onChange={(v) => updateDeck(i, { borderBoards: Math.max(0, Math.round(v)) })} />
+            {d.borderBoards > 0 && (
               <Field label="Corner style" hint="How the border boards meet at the corners. Mitered = 45° cuts; the butt options choose which pair of sides runs full-length (staggered alternates ring by ring).">
                 <select value={d.cornerStyle} onChange={(e) => updateDeck(i, { cornerStyle: e.target.value as CornerStyle })}>
                   <option value="mitered">Mitered (45°)</option>
@@ -237,7 +235,7 @@ export function App() {
                 </select>
               </Field>
             )}
-            {d.shape === 'rect' && d.borderBoards > 0 && (
+            {d.borderBoards > 0 && (
               <Field label="Backing boards" hint="Where the joists run: only under the planking field (inside the frame) or under the whole deck including beneath the border. With 'Inside frame', Auto-fit even spacing divides the field length, not the whole deck.">
                 <select value={d.backingSpan} onChange={(e) => updateDeck(i, { backingSpan: e.target.value as BackingSpan })}>
                   <option value="whole">Under whole deck</option>

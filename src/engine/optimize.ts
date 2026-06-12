@@ -58,15 +58,10 @@ export function optimize(project: Project): Result {
     const shape = deck.shape ?? 'rect';
 
     // Framed border: N rings of boards around the perimeter; the planking field
-    // shrinks by the border depth on all four sides. Borders aren't supported on
-    // L-shaped decks yet, so they're ignored there.
-    let N = Math.max(0, Math.floor(deck.borderBoards || 0));
-    if (shape !== 'rect' && N > 0) {
-      deckWarnings.push(
-        `"${deck.label}": picture-frame borders aren't supported on L-shaped decks yet — border ignored.`,
-      );
-      N = 0;
-    }
+    // shrinks by the border depth on all sides. For an L-shape the frame follows
+    // the full 6-edge outline (including the concave notch corner), and the field
+    // is the same L inset by the border depth — the notch keeps its size.
+    const N = Math.max(0, Math.floor(deck.borderBoards || 0));
     let bd = N > 0 ? N * plank.width + N * gaps.sideGap : 0;
     if (bd > 0 && (deck.length - 2 * bd < plank.width || deck.width - 2 * bd < plank.width)) {
       deckWarnings.push(
@@ -92,8 +87,9 @@ export function optimize(project: Project): Result {
     }
     const slots = rowSlots(field, plank.width, gaps, widthFit);
 
-    // L-shape: a rectangular notch removed from one corner. Borders are disabled
-    // for L-shapes (above), so field === deck and notch coords are deck coords.
+    // L-shape: a rectangular notch removed from one corner. The notch must fit
+    // inside the (possibly bordered) field. `notch` is in DECK coords for drawing
+    // the outline; the per-row run uses the same nl0/nw0 against the field.
     const nl0 = round(deck.notchLength || 0);
     const nw0 = round(deck.notchWidth || 0);
     const hasNotch =
@@ -104,15 +100,15 @@ export function optimize(project: Project): Result {
       nw0 < field.width - EPS;
     if (shape === 'lshape' && !hasNotch && (nl0 > 0 || nw0 > 0))
       deckWarnings.push(
-        `"${deck.label}": the notch (${nl0}×${nw0} mm) doesn't fit inside the ${field.length}×${field.width} mm deck — showing a plain rectangle. Reduce the notch size.`,
+        `"${deck.label}": the notch (${nl0}×${nw0} mm) doesn't fit inside the ${field.length}×${field.width} mm planking field — showing a plain rectangle. Reduce the notch size or the border.`,
       );
     const corner = deck.notchCorner ?? 'TR';
     const onLeft = corner === 'TL' || corner === 'BL';
     const onTop = corner === 'TL' || corner === 'TR';
     const notch = hasNotch
       ? {
-          x: onLeft ? 0 : round(field.length - nl0),
-          y: onTop ? 0 : round(field.width - nw0),
+          x: onLeft ? 0 : round(deck.length - nl0),
+          y: onTop ? 0 : round(deck.width - nw0),
           w: nl0,
           h: nw0,
         }
@@ -311,43 +307,134 @@ export function optimize(project: Project): Result {
         });
       };
 
-      for (let ring = 0; ring < N; ring++) {
-        const o = ring * step;
-        const F = (side: string) => `${deckLetter}·F${ring + 1}${side}`;
-        if (deck.cornerStyle === 'mitered') {
-          addMitred(F('T'), `${ring}T`, 'T', o);
-          addMitred(F('B'), `${ring}B`, 'B', o);
-          addMitred(F('L'), `${ring}L`, 'L', o);
-          addMitred(F('R'), `${ring}R`, 'R', o);
-        } else if (deck.cornerStyle === 'staggered') {
-          // Pinwheel: each board butts the side of the next, rotating around — so all
-          // four are the same length on a square deck.
-          const longH = deck.length - 2 * o - pw;
-          const longV = deck.width - 2 * o - pw;
-          if (longH > 0 && longV > 0) {
-            addButt(F('T'), `${ring}T`, o, o, pw, longH, true);
-            addButt(F('R'), `${ring}R`, deck.length - o - pw, o, pw, longV, false);
-            addButt(F('B'), `${ring}B`, o + pw, deck.width - o - pw, pw, longH, true);
-            addButt(F('L'), `${ring}L`, o, o + pw, pw, longV, false);
+      // General edge board for the L-shape outline: a trapezoid bounded by the
+      // edge's outer/inner offset lines and the two end (mitre or butt) lines,
+      // split into stock-length pieces. Mitres at true corners; interior splits
+      // are square. Works for convex and concave (notch) corners alike.
+      const emitEdge = (
+        base: string,
+        idKey: string,
+        horiz: boolean,
+        oS: [number, number],
+        oE: [number, number],
+        iS: [number, number],
+        iE: [number, number],
+      ) => {
+        const ai = horiz ? 0 : 1; // index of the along-edge coordinate
+        const ci = horiz ? 1 : 0; // index of the cross-edge coordinate
+        const cOut = oS[ci];
+        const cIn = iS[ci];
+        const a0o = oS[ai], a1o = oE[ai], a0i = iS[ai], a1i = iE[ai];
+        const total = Math.abs(a1o - a0o);
+        if (total < EPS) return;
+        const dir = a1o >= a0o ? 1 : -1;
+        const P = (along: number, cross: number) =>
+          horiz ? `${round(along)},${round(cross)}` : `${round(cross)},${round(along)}`;
+        const pieces = splitLen(total);
+        let cum = 0;
+        pieces.forEach((plen, pi) => {
+          const first = pi === 0, last = pi === pieces.length - 1;
+          const outStart = a0o + dir * cum;
+          const outEnd = a0o + dir * (cum + plen);
+          const inStart = first ? a0i : outStart; // square at interior joints
+          const inEnd = last ? a1i : outEnd;
+          const pts = `${P(outStart, cOut)} ${P(outEnd, cOut)} ${P(inEnd, cIn)} ${P(inStart, cIn)}`;
+          const alongs = [outStart, outEnd, inStart, inEnd];
+          const aMin = Math.min(...alongs), aMax = Math.max(...alongs);
+          const cMin = Math.min(cOut, cIn), cMax = Math.max(cOut, cIn);
+          const bx = horiz ? aMin : cMin;
+          const by = horiz ? cMin : aMin;
+          const bw = horiz ? aMax - aMin : cMax - cMin;
+          const bh = horiz ? cMax - cMin : aMax - aMin;
+          const cut = Math.max(Math.abs(outEnd - outStart), Math.abs(inEnd - inStart));
+          emit(pieces.length > 1 ? `${base}-${pi + 1}` : base, idKey, pi, cut, bx, by, bw, bh, pts);
+          cum += plen + gaps.endGap;
+        });
+      };
+
+      if (!hasNotch) {
+        // Rectangle (4 sides) — original corner-style layout.
+        for (let ring = 0; ring < N; ring++) {
+          const o = ring * step;
+          const F = (side: string) => `${deckLetter}·F${ring + 1}${side}`;
+          if (deck.cornerStyle === 'mitered') {
+            addMitred(F('T'), `${ring}T`, 'T', o);
+            addMitred(F('B'), `${ring}B`, 'B', o);
+            addMitred(F('L'), `${ring}L`, 'L', o);
+            addMitred(F('R'), `${ring}R`, 'R', o);
+          } else if (deck.cornerStyle === 'staggered') {
+            // Pinwheel: each board butts the side of the next, rotating around — so all
+            // four are the same length on a square deck.
+            const longH = deck.length - 2 * o - pw;
+            const longV = deck.width - 2 * o - pw;
+            if (longH > 0 && longV > 0) {
+              addButt(F('T'), `${ring}T`, o, o, pw, longH, true);
+              addButt(F('R'), `${ring}R`, deck.length - o - pw, o, pw, longV, false);
+              addButt(F('B'), `${ring}B`, o + pw, deck.width - o - pw, pw, longH, true);
+              addButt(F('L'), `${ring}L`, o, o + pw, pw, longV, false);
+            }
+          } else if (deck.cornerStyle === 'topBottom') {
+            const longLen = deck.length - 2 * o;
+            const sideLen = deck.width - 2 * o - 2 * pw;
+            addButt(F('T'), `${ring}T`, o, o, pw, longLen, true);
+            addButt(F('B'), `${ring}B`, o, deck.width - o - pw, pw, longLen, true);
+            if (sideLen > 0) {
+              addButt(F('L'), `${ring}L`, o, o + pw, pw, sideLen, false);
+              addButt(F('R'), `${ring}R`, deck.length - o - pw, o + pw, pw, sideLen, false);
+            }
+          } else {
+            // 'sides' — left & right run full width
+            const longLen = deck.width - 2 * o;
+            const midLen = deck.length - 2 * o - 2 * pw;
+            addButt(F('L'), `${ring}L`, o, o, pw, longLen, false);
+            addButt(F('R'), `${ring}R`, deck.length - o - pw, o, pw, longLen, false);
+            if (midLen > 0) {
+              addButt(F('T'), `${ring}T`, o + pw, o, pw, midLen, true);
+              addButt(F('B'), `${ring}B`, o + pw, deck.width - o - pw, pw, midLen, true);
+            }
           }
-        } else if (deck.cornerStyle === 'topBottom') {
-          const longLen = deck.length - 2 * o;
-          const sideLen = deck.width - 2 * o - 2 * pw;
-          addButt(F('T'), `${ring}T`, o, o, pw, longLen, true);
-          addButt(F('B'), `${ring}B`, o, deck.width - o - pw, pw, longLen, true);
-          if (sideLen > 0) {
-            addButt(F('L'), `${ring}L`, o, o + pw, pw, sideLen, false);
-            addButt(F('R'), `${ring}R`, deck.length - o - pw, o + pw, pw, sideLen, false);
-          }
-        } else {
-          // 'sides' — left & right run full width
-          const longLen = deck.width - 2 * o;
-          const midLen = deck.length - 2 * o - 2 * pw;
-          addButt(F('L'), `${ring}L`, o, o, pw, longLen, false);
-          addButt(F('R'), `${ring}R`, deck.length - o - pw, o, pw, longLen, false);
-          if (midLen > 0) {
-            addButt(F('T'), `${ring}T`, o + pw, o, pw, midLen, true);
-            addButt(F('B'), `${ring}B`, o + pw, deck.width - o - pw, pw, midLen, true);
+        }
+      } else {
+        // L-shape — one board per outline edge per ring. Offset each edge inward
+        // by the ring depth and intersect with its neighbours' offset lines; that
+        // single rule yields correct mitres at every corner, concave included.
+        const verts = lOutlineVerts(deck.length, deck.width, onLeft, onTop, nl0, nw0);
+        const mE = verts.length;
+        const inside = (x: number, y: number) => pointInPoly(x, y, verts);
+        const edges = verts.map((v, i) => {
+          const v2 = verts[(i + 1) % mE];
+          const horizontal = Math.abs(v[1] - v2[1]) < EPS;
+          const mx = (v[0] + v2[0]) / 2, my = (v[1] + v2[1]) / 2;
+          const nx = horizontal ? 0 : inside(mx + 1, my) ? 1 : -1;
+          const ny = horizontal ? (inside(mx, my + 1) ? 1 : -1) : 0;
+          return { ax: v[0], ay: v[1], horizontal, nx, ny };
+        });
+        type E = (typeof edges)[number];
+        const coordAt = (e: E, t: number) => (e.horizontal ? e.ay + e.ny * t : e.ax + e.nx * t);
+        const isect = (ei: E, ti: number, ej: E, tj: number): [number, number] =>
+          ei.horizontal ? [coordAt(ej, tj), coordAt(ei, ti)] : [coordAt(ei, ti), coordAt(ej, tj)];
+        for (let ring = 0; ring < N; ring++) {
+          const o = ring * step;
+          // Butt styles: which orientation runs long (mitered handled separately).
+          const horizLong = deck.cornerStyle === 'topBottom' || (deck.cornerStyle === 'staggered' && ring % 2 === 0);
+          const vertLong = deck.cornerStyle === 'sides' || (deck.cornerStyle === 'staggered' && ring % 2 === 1);
+          for (let i = 0; i < mE; i++) {
+            const e = edges[i], prev = edges[(i - 1 + mE) % mE], next = edges[(i + 1) % mE];
+            const base = `${deckLetter}·F${ring + 1}.${i + 1}`;
+            const idKey = `${ring}e${i}`;
+            if (deck.cornerStyle === 'mitered') {
+              emitEdge(base, idKey, e.horizontal,
+                isect(e, o, prev, o), isect(e, o, next, o),
+                isect(e, o + pw, prev, o + pw), isect(e, o + pw, next, o + pw));
+            } else {
+              // Long boards cover the corner (neighbour's outer face); short boards
+              // butt against the long board's inner face.
+              const isLong = e.horizontal ? horizLong : vertLong;
+              const t = isLong ? o : o + pw;
+              emitEdge(base, idKey, e.horizontal,
+                isect(e, o, prev, t), isect(e, o, next, t),
+                isect(e, o + pw, prev, t), isect(e, o + pw, next, t));
+            }
           }
         }
       }
@@ -459,6 +546,32 @@ function computeShoppingList(bars: CutInstruction[], stock: StockOption[]): Shop
 
 function round(x: number): number {
   return Math.round(x * 1000) / 1000;
+}
+
+/** L-shape outline vertices (deck coords), clockwise — matches DeckCanvas. */
+function lOutlineVerts(
+  L: number,
+  W: number,
+  onLeft: boolean,
+  onTop: boolean,
+  w: number,
+  h: number,
+): Array<[number, number]> {
+  if (onTop && onLeft) return [[w, 0], [L, 0], [L, W], [0, W], [0, h], [w, h]];
+  if (onTop && !onLeft) return [[0, 0], [L - w, 0], [L - w, h], [L, h], [L, W], [0, W]];
+  if (!onTop && onLeft) return [[0, 0], [L, 0], [L, W], [w, W], [w, W - h], [0, W - h]];
+  return [[0, 0], [L, 0], [L, W - h], [L - w, W - h], [L - w, W], [0, W]]; // bottom-right
+}
+
+/** Ray-cast point-in-polygon test (used to find each edge's inward normal). */
+function pointInPoly(x: number, y: number, verts: Array<[number, number]>): boolean {
+  let inside = false;
+  for (let i = 0, j = verts.length - 1; i < verts.length; j = i++) {
+    const [xi, yi] = verts[i];
+    const [xj, yj] = verts[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
 }
 
 /** Deck index → spreadsheet-style letter: 0→A, 1→B, … 25→Z, 26→AA. */

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Capacitor } from '@capacitor/core';
-import type { BackingSpan, CornerStyle, Deck, Project, StaggerMode, WidthFit } from '../model/types';
+import type { BackingSpan, CornerStyle, Deck, DeckShape, NotchCorner, Project, StaggerMode, WidthFit } from '../model/types';
 import { defaultProject } from '../model/defaults';
 import { optimize } from '../engine/optimize';
 import { saveFile } from '../platform/save';
@@ -28,7 +28,8 @@ const isNative = Capacitor.isNativePlatform();
 /** Merge a loaded/partial project over defaults so older files and saves still open. */
 function normalizeProject(data: Partial<Project>): Project {
   const deckBase = (i: number): Deck => ({
-    id: `deck${i + 1}`, label: `Deck ${i + 1}`, length: 4000, width: 3000,
+    id: `deck${i + 1}`, label: `Deck ${i + 1}`, shape: 'rect', length: 4000, width: 3000,
+    notchLength: 2000, notchWidth: 1500, notchCorner: 'TR',
     spacing: 600, firstOffset: defaultProject.decks[0].firstOffset, noSeams: false, borderBoards: 0,
     cornerStyle: 'mitered', backingSpan: 'whole',
   });
@@ -118,7 +119,7 @@ export function App() {
   const updateDeck = (i: number, p: Partial<Deck>) =>
     patch({ decks: project.decks.map((d, idx) => (idx === i ? { ...d, ...p } : d)) });
   const addDeck = () =>
-    patch({ decks: [...project.decks, { id: `deck${Date.now()}`, label: `Deck ${project.decks.length + 1}`, length: 4000, width: 3000, spacing: 600, firstOffset: defaultProject.decks[0].firstOffset, noSeams: false, borderBoards: 0, cornerStyle: 'mitered', backingSpan: 'whole' }] });
+    patch({ decks: [...project.decks, { id: `deck${Date.now()}`, label: `Deck ${project.decks.length + 1}`, shape: 'rect', length: 4000, width: 3000, notchLength: 2000, notchWidth: 1500, notchCorner: 'TR', spacing: 600, firstOffset: defaultProject.decks[0].firstOffset, noSeams: false, borderBoards: 0, cornerStyle: 'mitered', backingSpan: 'whole' }] });
   const removeDeck = (i: number) => {
     if (!window.confirm(`Delete deck "${project.decks[i]?.label}"? This can't be undone.`)) return;
     patch({ decks: project.decks.filter((_, idx) => idx !== i) });
@@ -196,15 +197,37 @@ export function App() {
         {project.decks.map((d, i) => (
           <div key={d.id} className="deck-edit">
             <Text label="Name" hint="A label for this deck, shown above its plan." value={d.label} onChange={(v) => updateDeck(i, { label: v })} />
-            <Num label="Length (mm)" hint="Deck size in the direction the planks run." value={d.length} onChange={(v) => updateDeck(i, { length: v })} />
-            <Num label="Width (mm)" hint="Deck size across the planks (the number of rows)." value={d.width} onChange={(v) => updateDeck(i, { width: v })} />
+            <Field label="Shape" hint="Deck outline. Rectangle is a plain deck; L-shape is a rectangle with a rectangular notch cut from one corner (e.g. around a wall or tree).">
+              <select value={d.shape ?? 'rect'} onChange={(e) => updateDeck(i, { shape: e.target.value as DeckShape })}>
+                <option value="rect">Rectangle</option>
+                <option value="lshape">L-shape</option>
+              </select>
+            </Field>
+            <Num label="Length (mm)" hint="Deck size in the direction the planks run. For an L-shape this is the full bounding length." value={d.length} onChange={(v) => updateDeck(i, { length: v })} />
+            <Num label="Width (mm)" hint="Deck size across the planks (the number of rows). For an L-shape this is the full bounding width." value={d.width} onChange={(v) => updateDeck(i, { width: v })} />
+            {d.shape === 'lshape' && (
+              <>
+                <Field label="Notch corner" hint="Which corner of the bounding rectangle the notch is cut from, as drawn in the plan (top = first row).">
+                  <select value={d.notchCorner ?? 'TR'} onChange={(e) => updateDeck(i, { notchCorner: e.target.value as NotchCorner })}>
+                    <option value="TL">Top-left</option>
+                    <option value="TR">Top-right</option>
+                    <option value="BL">Bottom-left</option>
+                    <option value="BR">Bottom-right</option>
+                  </select>
+                </Field>
+                <Num label="Notch length (mm)" hint="How far the notch reaches along the deck length (the run direction). Must be less than the deck length." value={d.notchLength} onChange={(v) => updateDeck(i, { notchLength: Math.max(0, v) })} />
+                <Num label="Notch width (mm)" hint="How far the notch reaches across the deck width. Must be less than the deck width." value={d.notchWidth} onChange={(v) => updateDeck(i, { notchWidth: Math.max(0, v) })} />
+              </>
+            )}
             <Num label="Board spacing (mm)" hint="Backing-board (joist) spacing for THIS deck, centre to centre. Seams may only land on a board." value={d.spacing} onChange={(v) => updateDeck(i, { spacing: v })} />
             <Num label="Edge board inset (mm)" hint={`Centre of the edge backing boards, measured in from each deck edge. Minimum ${minInset} mm (half the backing-board width).`} value={d.firstOffset} onChange={(v) => updateDeck(i, { firstOffset: Math.max(minInset, v) })} />
             <Field label="No seams (single boards)" hint="For short decks: lay one full-length board per row with no butt joints. Each board must be at least as long as the deck; board spacing is then ignored for the layout.">
               <input type="checkbox" checked={d.noSeams} onChange={(e) => updateDeck(i, { noSeams: e.target.checked })} />
             </Field>
-            <Num label="Border boards" hint="Picture-frame border: number of decking boards run around the whole deck perimeter (0 = none). The planking field shrinks to fit inside the border." value={d.borderBoards} onChange={(v) => updateDeck(i, { borderBoards: Math.max(0, Math.round(v)) })} />
-            {d.borderBoards > 0 && (
+            {d.shape === 'rect' && (
+              <Num label="Border boards" hint="Picture-frame border: number of decking boards run around the whole deck perimeter (0 = none). The planking field shrinks to fit inside the border." value={d.borderBoards} onChange={(v) => updateDeck(i, { borderBoards: Math.max(0, Math.round(v)) })} />
+            )}
+            {d.shape === 'rect' && d.borderBoards > 0 && (
               <Field label="Corner style" hint="How the border boards meet at the corners. Mitered = 45° cuts; the butt options choose which pair of sides runs full-length (staggered alternates ring by ring).">
                 <select value={d.cornerStyle} onChange={(e) => updateDeck(i, { cornerStyle: e.target.value as CornerStyle })}>
                   <option value="mitered">Mitered (45°)</option>
@@ -214,7 +237,7 @@ export function App() {
                 </select>
               </Field>
             )}
-            {d.borderBoards > 0 && (
+            {d.shape === 'rect' && d.borderBoards > 0 && (
               <Field label="Backing boards" hint="Where the joists run: only under the planking field (inside the frame) or under the whole deck including beneath the border. With 'Inside frame', Auto-fit even spacing divides the field length, not the whole deck.">
                 <select value={d.backingSpan} onChange={(e) => updateDeck(i, { backingSpan: e.target.value as BackingSpan })}>
                   <option value="whole">Under whole deck</option>

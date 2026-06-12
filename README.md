@@ -88,9 +88,21 @@ system **share sheet** (save to Files/Drive/email), via Capacitor Filesystem +
 Share. Each deck has a 🔍 **View / zoom** button for a full-screen,
 pinch-to-zoom plan with **PNG export**.
 
-**Install on a device:** copy the APK to your phone, enable *Settings → Apps →
-Special access → Install unknown apps* for your file manager, then tap the APK.
-(Debug-signed APKs are for sideloading/testing, not the Play Store.)
+### Install it on your phone
+
+1. On your phone, open the [**Releases**](../../releases) page and download the
+   latest **`DeckBuilder-vX.Y.Z.apk`** (or copy the APK over from a PC).
+2. Tap the downloaded file. Android will say installing is blocked — tap
+   **Settings**, then enable **Allow from this source** for the app you opened it
+   with (your browser or Files app). This is *Settings → Apps → Special access →
+   Install unknown apps*.
+3. Go back and tap **Install**, then **Open**.
+4. To update later: download the newer APK and install it over the top — your
+   saved decks are kept.
+
+> The APK is **debug-signed** (fine for sideloading/personal use, not the Play
+> Store). Android may warn that it's from an unknown developer — that's expected
+> for a self-distributed app; tap through to install.
 
 ### Rebuild the APK
 

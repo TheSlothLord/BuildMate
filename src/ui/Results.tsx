@@ -11,9 +11,16 @@ interface Props {
 }
 
 const m = (mm: number) => `${(mm / 1000).toFixed(2)} m`;
-
-type CutSortKey = 'barId' | 'stockLength' | 'cuts' | 'remainder';
 const barNum = (id: string) => parseInt(id.replace(/\D/g, ''), 10) || 0;
+
+/** Small reusable column-sort state: click a header to toggle asc/desc. */
+function useTableSort<K extends string>(initial: K) {
+  const [sort, setSort] = useState<{ key: K; dir: 'asc' | 'desc' }>({ key: initial, dir: 'asc' });
+  const toggle = (k: K) => setSort((s) => (s.key === k ? { key: k, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: k, dir: 'asc' }));
+  const arrow = (k: K) => (sort.key === k ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '');
+  const sortBy = (r: number) => (sort.dir === 'asc' ? r : -r);
+  return { sort, toggle, arrow, sortBy };
+}
 
 export function Results({ result, endGap, cut }: Props) {
   const { stats, layouts, cutList, bom, shoppingList, warnings } = result;
@@ -21,20 +28,35 @@ export function Results({ result, endGap, cut }: Props) {
   const shoppingCount = shoppingList.reduce((s, l) => s + l.count, 0);
   const [zoomed, setZoomed] = useState<DeckLayout | null>(null);
 
-  // Cut-list cut plan popup + column sorting.
+  // Cut-list cut plan popup + sortable tables.
   const [barView, setBarView] = useState<{ barId: string; highlight?: string } | null>(null);
-  const [sort, setSort] = useState<{ key: CutSortKey; dir: 'asc' | 'desc' }>({ key: 'barId', dir: 'asc' });
-  const toggleSort = (key: CutSortKey) =>
-    setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
-  const sortedCuts = [...cutList].sort((a, b) => {
-    const r =
-      sort.key === 'stockLength' ? a.stockLength - b.stockLength :
-      sort.key === 'cuts' ? a.cuts - b.cuts :
-      sort.key === 'remainder' ? a.endRemainder - b.endRemainder :
-      barNum(a.barId) - barNum(b.barId);
-    return sort.dir === 'asc' ? r : -r;
-  });
-  const arrow = (key: CutSortKey) => (sort.key === key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '');
+  const cutSort = useTableSort<'barId' | 'stockLength' | 'cuts' | 'remainder'>('barId');
+  const shopSort = useTableSort<'length' | 'count' | 'cost'>('length');
+  const bomSort = useTableSort<'stockLength' | 'source' | 'count' | 'cost'>('stockLength');
+
+  const sortedCuts = [...cutList].sort((a, b) =>
+    cutSort.sortBy(
+      cutSort.sort.key === 'stockLength' ? a.stockLength - b.stockLength :
+      cutSort.sort.key === 'cuts' ? a.cuts - b.cuts :
+      cutSort.sort.key === 'remainder' ? a.endRemainder - b.endRemainder :
+      barNum(a.barId) - barNum(b.barId),
+    ),
+  );
+  const sortedShopping = [...shoppingList].sort((a, b) =>
+    shopSort.sortBy(
+      shopSort.sort.key === 'count' ? a.count - b.count :
+      shopSort.sort.key === 'cost' ? (a.cost ?? 0) - (b.cost ?? 0) :
+      a.length - b.length,
+    ),
+  );
+  const sortedBom = [...bom].sort((a, b) =>
+    bomSort.sortBy(
+      bomSort.sort.key === 'source' ? a.source.localeCompare(b.source) :
+      bomSort.sort.key === 'count' ? a.count - b.count :
+      bomSort.sort.key === 'cost' ? (a.cost ?? 0) - (b.cost ?? 0) :
+      a.stockLength - b.stockLength,
+    ),
+  );
   const openBar = (barId: string, highlight?: string) => setBarView({ barId, highlight });
   const shownBar: CutInstruction | undefined = barView ? cutList.find((c) => c.barId === barView.barId) : undefined;
 
@@ -85,10 +107,14 @@ export function Results({ result, endGap, cut }: Props) {
       ) : (
         <table className="cuts">
           <thead>
-            <tr><th>Buy length</th><th>Qty</th><th>Cost</th></tr>
+            <tr>
+              <th className="sortable" onClick={() => shopSort.toggle('length')}>Buy length{shopSort.arrow('length')}</th>
+              <th className="sortable" onClick={() => shopSort.toggle('count')}>Qty{shopSort.arrow('count')}</th>
+              <th className="sortable" onClick={() => shopSort.toggle('cost')}>Cost{shopSort.arrow('cost')}</th>
+            </tr>
           </thead>
           <tbody>
-            {shoppingList.map((l) => (
+            {sortedShopping.map((l) => (
               <tr key={l.length}>
                 <td>{l.length} mm</td>
                 <td>{l.count}</td>
@@ -107,10 +133,15 @@ export function Results({ result, endGap, cut }: Props) {
       <h2>Materials used</h2>
       <table className="cuts">
         <thead>
-          <tr><th>Stock length</th><th>Source</th><th>Qty</th><th>Cost</th></tr>
+          <tr>
+            <th className="sortable" onClick={() => bomSort.toggle('stockLength')}>Stock length{bomSort.arrow('stockLength')}</th>
+            <th className="sortable" onClick={() => bomSort.toggle('source')}>Source{bomSort.arrow('source')}</th>
+            <th className="sortable" onClick={() => bomSort.toggle('count')}>Qty{bomSort.arrow('count')}</th>
+            <th className="sortable" onClick={() => bomSort.toggle('cost')}>Cost{bomSort.arrow('cost')}</th>
+          </tr>
         </thead>
         <tbody>
-          {bom.map((b) => (
+          {sortedBom.map((b) => (
             <tr key={`${b.source}-${b.stockLength}`}>
               <td>{b.stockLength} mm</td>
               <td>{b.source === 'onhand' ? 'inventory' : 'bought'}</td>
@@ -126,11 +157,11 @@ export function Results({ result, endGap, cut }: Props) {
       <table className="cuts">
         <thead>
           <tr>
-            <th className="sortable" onClick={() => toggleSort('barId')}>Stock{arrow('barId')}</th>
-            <th className="sortable" onClick={() => toggleSort('stockLength')}>Length{arrow('stockLength')}</th>
-            <th className="sortable" onClick={() => toggleSort('cuts')}>Cuts{arrow('cuts')}</th>
+            <th className="sortable" onClick={() => cutSort.toggle('barId')}>Stock{cutSort.arrow('barId')}</th>
+            <th className="sortable" onClick={() => cutSort.toggle('stockLength')}>Length{cutSort.arrow('stockLength')}</th>
+            <th className="sortable" onClick={() => cutSort.toggle('cuts')}>Cuts{cutSort.arrow('cuts')}</th>
             <th>Boards (length)</th>
-            <th className="sortable" onClick={() => toggleSort('remainder')}>Remainder{arrow('remainder')}</th>
+            <th className="sortable" onClick={() => cutSort.toggle('remainder')}>Remainder{cutSort.arrow('remainder')}</th>
           </tr>
         </thead>
         <tbody>

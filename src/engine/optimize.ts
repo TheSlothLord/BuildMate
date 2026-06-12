@@ -216,7 +216,8 @@ export function optimize(project: Project): Result {
               const bb: BorderBoard = { name, lengthMm: round(plen), x: round(bx), y: round(by), w: round(Math.max(...xs) - bx), h: round(Math.max(...ys) - by), points: pts, barId: '', reusedOffcut: false };
               borderBoards.push(bb);
               const idk = `${deck.id}#F#${ring}e${i}#${pi}`;
-              demand.push({ id: idk, length: bb.lengthMm, label: name });
+              const cuts = cutsFromQuad(pts);
+              demand.push({ id: idk, length: bb.lengthMm, label: name, cuts: cuts.length ? cuts : undefined });
               borderIndex.set(idk, bb);
               cum += plen + gaps.endGap;
             });
@@ -442,7 +443,8 @@ export function optimize(project: Project): Result {
       const emit = (name: string, idKey: string, pi: number, len: number, x: number, y: number, w: number, h: number, points?: string) => {
         const bb: BorderBoard = { name, lengthMm: round(len), x: round(x), y: round(y), w: round(w), h: round(h), points, barId: '', reusedOffcut: false };
         borderBoards.push(bb);
-        demand.push({ id: `${deck.id}#F#${idKey}#${pi}`, length: bb.lengthMm, label: name });
+        const cuts = points ? cutsFromQuad(points) : undefined;
+        demand.push({ id: `${deck.id}#F#${idKey}#${pi}`, length: bb.lengthMm, label: name, cuts: cuts && cuts.length ? cuts : undefined });
         borderIndex.set(`${deck.id}#F#${idKey}#${pi}`, bb);
       };
       // Butt-jointed side: a straight run split into pieces.
@@ -758,6 +760,38 @@ function pointInPoly(x: number, y: number, verts: Array<[number, number]>): bool
     if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
+}
+
+/**
+ * Derive bevelled-end cut data from a border board's drawn quad, so the cut plan
+ * can show mitred ends as angled (not square). Square ends (butt joints / interior
+ * splits) deviate <1° from perpendicular and produce no cut.
+ */
+function cutsFromQuad(pointsStr: string): AngledCut[] {
+  const P = pointsStr.trim().split(/\s+/).map((s) => s.split(',').map(Number));
+  if (P.length < 4) return [];
+  const e = [0, 1, 2, 3].map((i) => [P[(i + 1) % 4][0] - P[i][0], P[(i + 1) % 4][1] - P[i][1]] as [number, number]);
+  const len = e.map((v) => Math.hypot(v[0], v[1]));
+  const longIsE0 = len[0] + len[2] >= len[1] + len[3]; // which opposite pair runs the board's length
+  const longIdx = longIsE0 ? [0, 2] : [1, 3];
+  const endIdx = longIsE0 ? [1, 3] : [0, 2];
+  const longMm = round(Math.max(len[longIdx[0]], len[longIdx[1]]));
+  const shortMm = round(Math.min(len[longIdx[0]], len[longIdx[1]]));
+  const ld = e[longIdx[0]];
+  const llen = Math.hypot(ld[0], ld[1]) || 1;
+  const ldir = [ld[0] / llen, ld[1] / llen];
+  const found: { proj: number; angleDeg: number }[] = [];
+  for (const i of endIdx) {
+    const v = e[i];
+    const vlen = Math.hypot(v[0], v[1]) || 1;
+    const dot = Math.abs((v[0] * ldir[0] + v[1] * ldir[1]) / vlen);
+    const off = round(90 - (Math.acos(Math.min(1, dot)) * 180) / Math.PI); // 0 = square, >0 = mitre
+    if (off < 1) continue;
+    const mid = [(P[i][0] + P[(i + 1) % 4][0]) / 2, (P[i][1] + P[(i + 1) % 4][1]) / 2];
+    found.push({ proj: mid[0] * ldir[0] + mid[1] * ldir[1], angleDeg: off });
+  }
+  found.sort((a, b) => a.proj - b.proj);
+  return found.map((c, i) => ({ side: i === 0 ? 'L' : 'R', longMm, shortMm, angleDeg: c.angleDeg }));
 }
 
 /** Deck index → spreadsheet-style letter: 0→A, 1→B, … 25→Z, 26→AA. */

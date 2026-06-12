@@ -1,9 +1,37 @@
-# DeckBuilder
+# 🪵 DeckBuilder
 
-Web app that optimizes decking-plank layout: it snaps every seam to the
-backing-board (joist) grid, packs cuts from your stock lengths (reusing offcuts,
-accounting for saw kerf), and generates a visual deck plan with a pleasing,
-user-selectable seam pattern.
+**Decking plank layout & cut optimizer.** Enter your deck dimensions, board
+spacing, and the plank lengths you have or can buy — DeckBuilder snaps every seam
+to the backing-board (joist) grid, minimizes waste with offcut reuse and saw-kerf
+accounting, uses your on-hand stock first and lists what to buy for the rest, and
+draws a clean, *not-too-structured* seam pattern you can zoom into and export.
+
+Runs as a **web app**, a **Windows desktop app**, and an **Android 15 app** — all
+from one React/TypeScript codebase.
+
+![A sample optimized deck plan](docs/sample-plan.svg)
+
+## Features
+
+- **Seams snap to the joist grid** — every butt joint lands on a backing board.
+- **Cut optimization** — 1D cutting-stock packing with **saw kerf** and **offcut reuse**.
+- **Inventory → shopping list** — uses planks you already own first, then tells you
+  exactly which lengths and quantities to buy to finish the job.
+- **Five seam patterns** — true random, random-with-rules, jittered brick, staggered,
+  max scatter; a seed you can step through, and a waste ↔ looks slider.
+- **Multiple decks**, per-deck board spacing with **auto-fit**, **no-seam** mode for
+  short decks, and **edge handling** (rip / overhang / gap).
+- **Visual plan** — interactive SVG, full-screen **pinch-zoom**, and **PNG export**.
+- **Save/Load** projects as `.deck` files (native share sheet on Android).
+
+## Download
+
+Grab the latest packaged builds from the [**Releases**](../../releases) page:
+
+| Platform | File |
+|---|---|
+| Android 15 | `DeckBuilder.apk` (sideload) |
+| Windows | `DeckBuilder-<version>-win-x64.zip` (unzip → run `DeckBuilder.exe`) |
 
 See [DESIGN.md](DESIGN.md) for the full design (model, algorithm, math).
 
@@ -91,27 +119,41 @@ npm run typecheck
 
 ## How it works (pipeline)
 
-1. **Grid** — joist positions from spacing/offset; rows across the width with the
-   leftover split evenly between the first and last rows (balanced edges).
+1. **Grid** — joist positions from spacing/offset; rows across the width, with the
+   leftover strip handled per the chosen edge fit (rip a board / overhang / gap).
 2. **Stage A — candidates** (`engine/candidates.ts`): per-row cut plans whose
    segments fit a stock plank and respect the min-piece rule.
 3. **Stage B — stagger** (`engine/stagger.ts`): picks one candidate per row for
    the chosen mode (true random / random-with-rules / jittered brick / staggered
    / max scatter), enforcing min seam offset and avoiding alignment, staircases
-   and periodicity. Seeded — **Reroll** changes the seed.
+   and periodicity. Seeded — stepping the seed changes the pattern.
 4. **Stage C — cut stock** (`engine/cutstock.ts`): first-fit-decreasing packing
-   with kerf and offcut reuse across all decks.
-5. **Stats** — kerf loss, scrap, leftover, waste %, cost.
+   with kerf and offcut reuse across all decks, drawing from **on-hand inventory
+   first, then store** stock — producing a shopping list for the shortfall.
+5. **Stats** — kerf loss, scrap, leftover, waste %, planks from inventory vs. to buy, cost.
 
 ## Structure
 
 ```
-src/model/    types + defaults
-src/engine/   rng · grid · candidates · stagger · cutstock · optimize  (pure, testable)
-src/ui/       App (inputs) · DeckCanvas (SVG plan) · Results (BOM / cut list / stats)
+src/model/      types + defaults
+src/engine/     rng · grid · candidates · stagger · cutstock · optimize  (pure, testable)
+src/ui/         App (inputs) · DeckCanvas (SVG plan) · ZoomView · Results
+src/platform/   save (native share sheet / browser download)
+electron/       desktop main process          android/   Capacitor project
+```
+
+## Releasing
+
+CI ([`.github/workflows/build.yml`](.github/workflows/build.yml)) builds the web,
+Android, and Windows targets on every push. Pushing a version tag also publishes a
+GitHub Release with the APK and Windows zip attached:
+
+```bash
+npm version patch        # bumps package.json + creates a vX.Y.Z tag
+git push --follow-tags   # triggers the release build
 ```
 
 ## Status
 
-MVP. Engine runs inline; Stage B is greedy+rules. Next: simulated annealing in a
-Web Worker, persistence, and SVG/CSV/PDF export (see DESIGN.md §9).
+MVP. Engine runs inline; Stage B is greedy + rules. Next: simulated annealing in a
+Web Worker, and signed release builds (see DESIGN.md §9).

@@ -1,20 +1,42 @@
 import { useState } from 'react';
-import type { DeckLayout, Result } from '../model/types';
+import type { CutConfig, CutInstruction, DeckLayout, Result } from '../model/types';
 import { DeckCanvas } from './DeckCanvas';
 import { ZoomView } from './ZoomView';
+import { BarView } from './BarView';
 
 interface Props {
   result: Result;
   endGap: number;
+  cut: CutConfig;
 }
 
 const m = (mm: number) => `${(mm / 1000).toFixed(2)} m`;
 
-export function Results({ result, endGap }: Props) {
+type CutSortKey = 'barId' | 'stockLength' | 'cuts' | 'remainder';
+const barNum = (id: string) => parseInt(id.replace(/\D/g, ''), 10) || 0;
+
+export function Results({ result, endGap, cut }: Props) {
   const { stats, layouts, cutList, bom, shoppingList, warnings } = result;
   const shoppingTotal = shoppingList.reduce((s, l) => s + (l.cost ?? 0), 0);
   const shoppingCount = shoppingList.reduce((s, l) => s + l.count, 0);
   const [zoomed, setZoomed] = useState<DeckLayout | null>(null);
+
+  // Cut-list cut plan popup + column sorting.
+  const [barView, setBarView] = useState<{ barId: string; highlight?: string } | null>(null);
+  const [sort, setSort] = useState<{ key: CutSortKey; dir: 'asc' | 'desc' }>({ key: 'barId', dir: 'asc' });
+  const toggleSort = (key: CutSortKey) =>
+    setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+  const sortedCuts = [...cutList].sort((a, b) => {
+    const r =
+      sort.key === 'stockLength' ? a.stockLength - b.stockLength :
+      sort.key === 'cuts' ? a.cuts - b.cuts :
+      sort.key === 'remainder' ? a.endRemainder - b.endRemainder :
+      barNum(a.barId) - barNum(b.barId);
+    return sort.dir === 'asc' ? r : -r;
+  });
+  const arrow = (key: CutSortKey) => (sort.key === key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '');
+  const openBar = (barId: string, highlight?: string) => setBarView({ barId, highlight });
+  const shownBar: CutInstruction | undefined = barView ? cutList.find((c) => c.barId === barView.barId) : undefined;
 
   return (
     <div className="main">
@@ -46,7 +68,7 @@ export function Results({ result, endGap }: Props) {
             {layout.label} — {m(layout.lengthMm)} × {m(layout.widthMm)}
             <button className="zoom-open" onClick={() => setZoomed(layout)} title="Open a zoomable, full-screen view of this plan">🔍 View / zoom</button>
           </h3>
-          <DeckCanvas layout={layout} endGap={endGap} />
+          <DeckCanvas layout={layout} endGap={endGap} onPickPlank={openBar} />
           <div className="legend">
             <span><i className="sw" style={{ background: 'var(--plank)' }} /> fresh plank</span>
             <span><i className="sw" style={{ background: 'var(--plank-alt)' }} /> cut from offcut</span>
@@ -100,14 +122,20 @@ export function Results({ result, endGap }: Props) {
       </table>
 
       <h2>Cut list</h2>
-      <p className="tagline">Each stock plank below, and the boards A(row,index) to cut from it.</p>
+      <p className="tagline">Click a row — or a plank in a plan above — to see how that stock plank is cut. Click a column to sort.</p>
       <table className="cuts">
         <thead>
-          <tr><th>Stock</th><th>Length</th><th>Cuts</th><th>Boards (length)</th><th>Remainder</th></tr>
+          <tr>
+            <th className="sortable" onClick={() => toggleSort('barId')}>Stock{arrow('barId')}</th>
+            <th className="sortable" onClick={() => toggleSort('stockLength')}>Length{arrow('stockLength')}</th>
+            <th className="sortable" onClick={() => toggleSort('cuts')}>Cuts{arrow('cuts')}</th>
+            <th>Boards (length)</th>
+            <th className="sortable" onClick={() => toggleSort('remainder')}>Remainder{arrow('remainder')}</th>
+          </tr>
         </thead>
         <tbody>
-          {cutList.map((c) => (
-            <tr key={c.barId}>
+          {sortedCuts.map((c) => (
+            <tr key={c.barId} className="clickable" onClick={() => openBar(c.barId)} title="Show this plank's cut plan">
               <td>{c.barId}</td>
               <td>{c.stockLength} mm <span className={`src ${c.source}`}>{c.source === 'onhand' ? 'inv' : 'buy'}</span></td>
               <td>{c.cuts}</td>
@@ -127,6 +155,18 @@ export function Results({ result, endGap }: Props) {
       </table>
 
       {zoomed && <ZoomView layout={zoomed} endGap={endGap} onClose={() => setZoomed(null)} />}
+
+      {shownBar && (
+        <div className="modal-backdrop" onClick={() => setBarView(null)}>
+          <div className="modal modal-wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Cut plan for ${shownBar.barId}`}>
+            <div className="modal-head">
+              <strong>Cut plan — {shownBar.barId}</strong>
+              <button className="x" aria-label="Close" onClick={() => setBarView(null)}>✕</button>
+            </div>
+            <BarView bar={shownBar} cut={cut} highlight={barView?.highlight} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

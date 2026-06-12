@@ -3,6 +3,7 @@ import type { DeckLayout, Notch, Row } from '../model/types';
 interface Props {
   layout: DeckLayout;
   endGap: number;
+  onPickPlank?: (barId: string, name: string) => void; // click a plank → show its cut plan
 }
 
 const TARGET_W = 820; // px the deck length is scaled to
@@ -20,7 +21,7 @@ function lOutlinePoints(L: number, W: number, n: Notch): Array<[number, number]>
   return [[0, 0], [L, 0], [L, W - h], [L - w, W - h], [L - w, W], [0, W]]; // bottom-right
 }
 
-export function DeckCanvas({ layout, endGap }: Props) {
+export function DeckCanvas({ layout, endGap, onPickPlank }: Props) {
   // A degenerate deck (e.g. a custom polygon mid-edit) has no drawable size.
   if (!(layout.lengthMm > 0) || !(layout.widthMm > 0)) {
     return (
@@ -118,9 +119,13 @@ export function DeckCanvas({ layout, endGap }: Props) {
         return (
           <g key={`bb${i}`}>
             {ptsPx ? (
-              <polygon points={ptsPx} fill={fill} stroke="var(--plank-edge)" strokeWidth={0.6}>{title}</polygon>
+              <polygon points={ptsPx} fill={fill} stroke="var(--plank-edge)" strokeWidth={0.6}
+                style={onPickPlank ? { cursor: 'pointer' } : undefined}
+                onClick={onPickPlank && bb.barId ? () => onPickPlank(bb.barId, bb.name) : undefined}>{title}</polygon>
             ) : (
-              <rect x={x} y={y} width={bw} height={bh} rx={1} fill={fill} stroke="var(--plank-edge)" strokeWidth={0.6}>{title}</rect>
+              <rect x={x} y={y} width={bw} height={bh} rx={1} fill={fill} stroke="var(--plank-edge)" strokeWidth={0.6}
+                style={onPickPlank ? { cursor: 'pointer' } : undefined}
+                onClick={onPickPlank && bb.barId ? () => onPickPlank(bb.barId, bb.name) : undefined}>{title}</rect>
             )}
             {showName && (
               <text x={cx} y={cy} fontSize={fs} fill="var(--plank-text)" textAnchor="middle" dominantBaseline="central"
@@ -153,7 +158,9 @@ export function DeckCanvas({ layout, endGap }: Props) {
               return (
                 <g key={`s${i}`}>
                   <rect x={left} y={y + 0.5} width={segW} height={rh - 1} rx={1}
-                    fill={seg.reusedOffcut ? 'var(--plank-alt)' : 'var(--plank)'} stroke="var(--plank-edge)" strokeWidth={0.6}>
+                    fill={seg.reusedOffcut ? 'var(--plank-alt)' : 'var(--plank)'} stroke="var(--plank-edge)" strokeWidth={0.6}
+                    style={onPickPlank ? { cursor: 'pointer' } : undefined}
+                    onClick={onPickPlank && seg.barId ? () => onPickPlank(seg.barId, seg.name) : undefined}>
                     <title>
                       {seg.name} · {seg.lengthMm} mm · {seg.bays} bay{seg.bays === 1 ? '' : 's'} · stock {seg.barId}
                       {seg.reusedOffcut ? ' (offcut)' : ''}

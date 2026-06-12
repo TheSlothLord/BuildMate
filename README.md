@@ -27,6 +27,8 @@ from one React/TypeScript codebase.
   grid, and boundary planks get **angled (bevelled) end cuts** recorded in the cut list.
 - **Picture-frame borders** — perimeter rings with mitred or butt corners.
 - **Visual plan** — interactive SVG, full-screen **pinch-zoom**, and **PNG export**.
+- **Cut plans** — click any cut-list row, or a plank in the plan, to see exactly how
+  its stock plank is cut (pieces, saw kerf, offcut/scrap); sort the cut list by any column.
 - **Save/Load** projects as `.deck` files (native share sheet on Android).
 - **Update check** — on launch the app compares its version against the latest
   GitHub release and shows a banner linking to the download when a newer one exists.

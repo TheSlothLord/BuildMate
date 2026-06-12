@@ -20,7 +20,7 @@ import { generateRowCandidates, type RowCandidate } from './candidates';
 import { chooseLayout } from './stagger';
 import { packCutStock, type DemandPiece } from './cutstock';
 import { makeRng } from './rng';
-import { normalizePolygon, rowSpans } from './polygon';
+import { edgeNormals, normalizePolygon, offsetPolygon, polygonArea, rowSpans, type Pt } from './polygon';
 
 const EPS = 1e-6;
 
@@ -69,12 +69,31 @@ export function optimize(project: Project): Result {
       const seams = joists.filter((j) => j > EPS && j < polyW - EPS);
       const slots = rowSlots({ ...deck, width: polyH, length: polyW }, plank.width, gaps, widthFit);
 
+      // Picture-frame border: inset the planking field by the border depth (the
+      // polygon offset inward), and frame the original outline ring by ring.
+      const Nc = Math.max(0, Math.floor(deck.borderBoards || 0));
+      const pwB = plank.width;
+      const stepB = pwB + gaps.sideGap;
+      let bdC = Nc > 0 ? Nc * pwB + Nc * gaps.sideGap : 0;
+      let normals: Pt[] = [];
+      let fieldPoly = poly;
+      if (bdC > 0 && poly.length >= 3) {
+        normals = edgeNormals(poly);
+        const inner = offsetPolygon(poly, normals, bdC);
+        const a0 = polygonArea(poly);
+        const a1 = polygonArea(inner);
+        if (Math.sign(a1) !== Math.sign(a0) || Math.abs(a1) < Math.abs(a0) * 0.04) {
+          deckWarnings.push(`"${deck.label}": ${Nc} border ring(s) are too wide for this shape — border ignored.`);
+          bdC = 0;
+        } else {
+          fieldPoly = inner;
+        }
+      }
+
       let guard = stockLengths.length === 0;
       if (!guard && (poly.length < 3 || polyW <= 0 || polyH <= 0)) {
         deckWarnings.push(`"${deck.label}": add at least 3 corner points enclosing an area to lay out a custom shape.`);
         guard = true;
-      } else if (!guard && deck.borderBoards > 0) {
-        deckWarnings.push(`"${deck.label}": picture-frame borders aren't supported on custom shapes yet — border ignored.`);
       }
       if (!guard && !deck.noSeams && deck.spacing <= 0) {
         deckWarnings.push(`"${deck.label}": enter a backing-board spacing greater than 0 so seams have a board to land on.`);
@@ -93,7 +112,7 @@ export function optimize(project: Project): Result {
           if (slot.kind === 'gap') return;
           const yTop = slot.yStartMm;
           const bandH = slot.widthMm;
-          for (const sp of rowSpans(poly, yTop, Math.min(yTop + bandH, polyH))) {
+          for (const sp of rowSpans(fieldPoly, yTop, Math.min(yTop + bandH, polyH))) {
             const innerL = Math.max(sp.leftTop, sp.leftBot);
             const innerR = Math.min(sp.rightTop, sp.rightBot);
             const drawL = Math.min(sp.leftTop, sp.leftBot, sp.xL);
@@ -161,6 +180,50 @@ export function optimize(project: Project): Result {
         rows.push({ index: rowCounter++, widthMm: u.slot.widthMm, yStartMm: u.slot.yStartMm, xStartMm: round(u.drawL), runLengthMm: round(u.drawR - u.drawL), kind: u.slot.kind, overhangMm: u.slot.overhangMm, seams: sel.seams, segments });
       });
 
+      // Mitred picture frame following the polygon outline, ring by ring. Each
+      // edge board is the quad between the outline offset by o and by o+pw; long
+      // edges split into stock pieces (interior joints square).
+      const borderBoards: BorderBoard[] = [];
+      if (bdC > 0 && !guard) {
+        const splitLenC = (len: number): number[] => {
+          if (maxUsable <= 0 || len <= maxUsable) return [round(len)];
+          const k = Math.ceil(len / maxUsable);
+          return Array.from({ length: k }, () => round((len - (k - 1) * gaps.endGap) / k));
+        };
+        const lerp = (a: Pt, b: Pt, t: number): Pt => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+        const n = poly.length;
+        for (let ring = 0; ring < Nc; ring++) {
+          const o = ring * stepB;
+          const outer = offsetPolygon(poly, normals, o);
+          const inner = offsetPolygon(poly, normals, o + pwB);
+          for (let i = 0; i < n; i++) {
+            const oS = outer[i], oE = outer[(i + 1) % n];
+            const iS = inner[i], iE = inner[(i + 1) % n];
+            const edgeLen = Math.hypot(oE.x - oS.x, oE.y - oS.y);
+            if (edgeLen < 1) continue;
+            const pieces = splitLenC(edgeLen);
+            let cum = 0;
+            pieces.forEach((plen, pi) => {
+              const f0 = cum / edgeLen;
+              const f1 = (cum + plen) / edgeLen;
+              const q = [lerp(oS, oE, f0), lerp(oS, oE, f1), lerp(iE, iS, 1 - f1), lerp(iE, iS, 1 - f0)];
+              const xs = q.map((p) => p.x);
+              const ys = q.map((p) => p.y);
+              const bx = Math.min(...xs), by = Math.min(...ys);
+              const pts = q.map((p) => `${round(p.x)},${round(p.y)}`).join(' ');
+              const base = `${deckLetter}·F${ring + 1}.${i + 1}`;
+              const name = pieces.length > 1 ? `${base}-${pi + 1}` : base;
+              const bb: BorderBoard = { name, lengthMm: round(plen), x: round(bx), y: round(by), w: round(Math.max(...xs) - bx), h: round(Math.max(...ys) - by), points: pts, barId: '', reusedOffcut: false };
+              borderBoards.push(bb);
+              const idk = `${deck.id}#F#${ring}e${i}#${pi}`;
+              demand.push({ id: idk, length: bb.lengthMm, label: name });
+              borderIndex.set(idk, bb);
+              cum += plen + gaps.endGap;
+            });
+          }
+        }
+      }
+
       layouts.push({
         deckId: deck.id,
         label: deck.label,
@@ -170,7 +233,8 @@ export function optimize(project: Project): Result {
         fieldInsetMm: 0,
         joistSpanWhole: true,
         polygon: poly,
-        borderBoards: [],
+        clipPolygon: bdC > 0 ? fieldPoly : undefined,
+        borderBoards,
         joists,
         rows,
         warnings: deckWarnings,

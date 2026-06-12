@@ -59,9 +59,16 @@ export function DeckCanvas({ layout, endGap }: Props) {
         .map(([x, y]) => `${padX + x * s},${padTop + y * s}`)
         .join(' ')
     : null;
-  // Custom polygons clip the planking/seam/joist layer to the outline.
-  const clipId = `deckclip-${layout.deckId}`;
-  const clip = layout.polygon ? `url(#${clipId})` : undefined;
+  // Custom polygons clip the planking layer to the field (the inset polygon when
+  // there's a border, else the outline) and the joists to the full outline.
+  const outlineClipId = `outclip-${layout.deckId}`;
+  const fieldClipId = `fieldclip-${layout.deckId}`;
+  const fieldPoly = layout.clipPolygon ?? layout.polygon;
+  const toPts = (pts?: { x: number; y: number }[]) =>
+    pts ? pts.map((p) => `${padX + p.x * s},${padTop + p.y * s}`).join(' ') : '';
+  const fieldClipPts = layout.clipPolygon ? toPts(layout.clipPolygon) : null;
+  const outlineClip = layout.polygon ? `url(#${outlineClipId})` : undefined;
+  const fieldClip = fieldPoly ? `url(#${layout.clipPolygon ? fieldClipId : outlineClipId})` : undefined;
 
   return (
     <svg
@@ -73,9 +80,14 @@ export function DeckCanvas({ layout, endGap }: Props) {
     >
       {layout.polygon && (
         <defs>
-          <clipPath id={clipId}>
+          <clipPath id={outlineClipId}>
             <polygon points={outlinePts ?? ''} />
           </clipPath>
+          {fieldClipPts && (
+            <clipPath id={fieldClipId}>
+              <polygon points={fieldClipPts} />
+            </clipPath>
+          )}
         </defs>
       )}
 
@@ -120,9 +132,8 @@ export function DeckCanvas({ layout, endGap }: Props) {
         );
       })}
 
-      {/* clipped layer: planks, edge overlays, joists and seams.
-          For a custom polygon this trims everything to the outline. */}
-      <g clipPath={clip}>
+      {/* planks + edge overlays — clipped to the planking field */}
+      <g clipPath={fieldClip}>
       {/* plank rows (everything except gaps) */}
       {planks.map((row) => {
         const y = foy + row.yStartMm * s;
@@ -166,8 +177,10 @@ export function DeckCanvas({ layout, endGap }: Props) {
       {layout.rows.map((row) => (
         <EdgeOverlay key={`o${row.index}`} row={row} s={s} foy={foy} pw={pw} X0={fox + row.xStartMm * s} X1={fox + (row.xStartMm + row.runLengthMm) * s} fieldBottomY={fieldBottomY} />
       ))}
+      </g>
 
-      {/* backing boards (joists) — in deck coords, across the whole deck or the field */}
+      {/* backing boards (joists) — clipped to the full outline, not the field */}
+      <g clipPath={outlineClip}>
       {layout.joists.map((j, i) => {
         const x = padX + j * s;
         let jy1 = layout.joistSpanWhole ? padTop : foy;
@@ -189,7 +202,10 @@ export function DeckCanvas({ layout, endGap }: Props) {
         );
       })}
 
-      {/* seams — on top of the backing boards */}
+      </g>
+
+      {/* seams — on top of the backing boards, clipped to the planking field */}
+      <g clipPath={fieldClip}>
       {planks.map((row) => {
         const y = foy + row.yStartMm * s;
         const rh = row.widthMm * s;

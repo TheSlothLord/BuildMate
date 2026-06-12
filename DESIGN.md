@@ -58,8 +58,9 @@ objective. They are coupled — hence the **waste ↔ looks** trade-off slider.
 Per deck, with run direction along `L` (planks) and `W` across (rows):
 
 ```
-Joist positions:  J = { firstOffset + k·S : k ≥ 0, value ≤ L }
-Legal seams:      interior joists, i.e. J ∩ (0, L)
+Edge inset:       e = max(firstOffset, backingBoardWidth / 2)   // edge-board centre
+Joist positions:  J = { e } ∪ { e + k·S : k ≥ 1, < L − e } ∪ { L − e }   // edge boards both ends
+Legal seams:      interior joists J ∩ (0, L) (min-piece rule rejects edge-hugging ones)
 Rows:             count = floor((W + sideGap) / (plankWidth + sideGap))
                   leftover strip handled by widthFit: rip | extra (overhang) | gap
 ```

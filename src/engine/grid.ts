@@ -3,23 +3,28 @@ import type { Deck, Gaps, RowKind, WidthFit } from '../model/types';
 const EPS = 1e-6;
 
 /**
- * Interior joist (backing-board) positions along the deck length, from the
- * deck's firstOffset stepping by its spacing. The deck edges (0 and L) are not
- * joists; the far edge L is where the last plank terminates, drawn via the outline.
+ * Backing-board (joist) centre positions along the deck length: an edge board
+ * near each end (inset to its centre line by `firstOffset`, clamped to at least
+ * half a board width so it can't hang off the edge), with field boards every
+ * `spacing` in between.
  */
-export function joistPositions(deck: Deck): number[] {
+export function joistPositions(deck: Deck, boardWidth = 0): number[] {
+  const { spacing } = deck;
+  const L = deck.length;
+  if (spacing <= 0 || L <= 0) return [];
+  const inset = Math.max(deck.firstOffset, boardWidth / 2);
+
   const out: number[] = [];
-  const { spacing, firstOffset } = deck;
-  if (spacing <= 0) return [0, deck.length];
-  for (let x = firstOffset; x < deck.length - EPS; x += spacing) {
-    if (x > EPS) out.push(round(x));
-  }
+  if (inset < L - EPS) out.push(round(inset)); // near edge board
+  for (let x = inset + spacing; x < L - inset - EPS; x += spacing) out.push(round(x));
+  const far = L - inset;
+  if (far > inset + EPS) out.push(round(far)); // far edge board
   return out;
 }
 
-/** Interior joists are the only legal seam positions (strictly inside the deck). */
-export function legalSeams(deck: Deck): number[] {
-  return joistPositions(deck).filter((x) => x > EPS && x < deck.length - EPS);
+/** Seams may land on any backing board (the min-piece rule rejects edge-hugging ones). */
+export function legalSeams(deck: Deck, boardWidth = 0): number[] {
+  return joistPositions(deck, boardWidth).filter((x) => x > EPS && x < deck.length - EPS);
 }
 
 export interface RowSlot {

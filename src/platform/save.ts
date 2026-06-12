@@ -12,7 +12,9 @@ export async function saveFile(filename: string, blob: Blob): Promise<void> {
     await Filesystem.writeFile({ path: filename, data: base64, directory: Directory.Cache });
     const { uri } = await Filesystem.getUri({ path: filename, directory: Directory.Cache });
     try {
-      await Share.share({ title: filename, url: uri, dialogTitle: `Save ${filename}` });
+      // Use `files` (a content:// URI via FileProvider) — a bare file:// `url`
+      // is rejected by Android's share targets.
+      await Share.share({ title: filename, files: [uri], dialogTitle: `Save ${filename}` });
     } catch {
       // user dismissed the share sheet — nothing to do
     }

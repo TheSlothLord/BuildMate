@@ -22,7 +22,7 @@ import { makeRng } from './rng';
 const EPS = 1e-6;
 
 export function optimize(project: Project): Result {
-  const { plank, gaps, cut, stagger, widthFit, decks } = project;
+  const { plank, gaps, cut, stagger, widthFit, backingBoardWidth, decks } = project;
   const rng = makeRng(stagger.seed);
   const warnings: string[] = [];
 
@@ -49,8 +49,8 @@ export function optimize(project: Project): Result {
   const segIndex = new Map<string, Segment>();
 
   for (const deck of decks) {
-    const joists = joistPositions(deck);
-    const seams = legalSeams(deck);
+    const joists = joistPositions(deck, backingBoardWidth);
+    const seams = legalSeams(deck, backingBoardWidth);
     const slots = rowSlots(deck, plank.width, gaps, widthFit);
     const deckWarnings: string[] = [];
 

@@ -37,7 +37,7 @@ export interface Deck {
   length: mm; // run direction (planks)
   width: mm; // across rows
   spacing: mm; // backing-board (joist) spacing, centre-to-centre — per deck
-  firstOffset: mm; // distance from deck edge to first joist
+  firstOffset: mm; // edge-board inset: centre of the edge backing boards, this far in from each edge
   noSeams: boolean; // force single full-length boards per row (no butt joints)
 }
 
@@ -80,6 +80,7 @@ export interface Project {
   cut: CutConfig;
   stagger: StaggerConfig;
   widthFit: WidthFit;
+  backingBoardWidth: mm; // physical width of a backing board; min edge inset = half this
   decks: Deck[];
 }
 

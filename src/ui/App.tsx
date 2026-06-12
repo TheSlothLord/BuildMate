@@ -325,7 +325,7 @@ export function App() {
         </div>
       </aside>
 
-      <Results result={result} endGap={project.gaps.endGap} />
+      <Results result={result} endGap={project.gaps.endGap} cut={project.cut} />
 
       {pointsEditor !== null && project.decks[pointsEditor] && (
         <div className="modal-backdrop" onClick={() => setPointsEditor(null)}>

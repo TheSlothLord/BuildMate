@@ -190,7 +190,8 @@ export interface DeckLayout {
   fieldInsetMm: mm; // border depth: the planking field is inset this far on all sides
   joistSpanWhole: boolean; // joists drawn across the whole deck (true) or the field only (false)
   notch?: Notch; // L-shape: the removed corner rectangle, in deck coordinates
-  polygon?: DeckPoint[]; // custom shape: outline in deck coords (for outline + clip)
+  polygon?: DeckPoint[]; // custom shape: outline in deck coords (drawn + clips joists)
+  clipPolygon?: DeckPoint[]; // custom shape with a border: the inset planking field
   borderBoards: BorderBoard[];
   joists: mm[]; // joist centre positions in DECK coordinates (for drawing)
   rows: Row[]; // field-local rows

@@ -37,6 +37,75 @@ export function normalizePolygon(points: Pt[]): {
   };
 }
 
+/** Signed area (sign depends on winding; magnitude is the polygon area). */
+export function polygonArea(poly: Pt[]): number {
+  let a = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i];
+    const q = poly[(i + 1) % poly.length];
+    a += p.x * q.y - q.x * p.y;
+  }
+  return a / 2;
+}
+
+/** Ray-cast point-in-polygon test. */
+export function pointInPoly(x: number, y: number, poly: Pt[]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** Unit inward normal of each edge (a=poly[i] → b=poly[i+1]); points into the polygon. */
+export function edgeNormals(poly: Pt[]): Pt[] {
+  return poly.map((a, i) => {
+    const b = poly[(i + 1) % poly.length];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    let nx = -dy / len;
+    let ny = dx / len;
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    if (!pointInPoly(mx + nx * 0.01, my + ny * 0.01, poly)) {
+      nx = -nx;
+      ny = -ny;
+    }
+    return { x: nx, y: ny };
+  });
+}
+
+/** Intersection of line (p, dir d1) with line (q, dir d2); null if parallel. */
+function lineIntersect(p: Pt, d1: Pt, q: Pt, d2: Pt): Pt | null {
+  const denom = d1.x * d2.y - d1.y * d2.x;
+  if (Math.abs(denom) < 1e-9) return null;
+  const t = ((q.x - p.x) * d2.y - (q.y - p.y) * d2.x) / denom;
+  return { x: p.x + t * d1.x, y: p.y + t * d1.y };
+}
+
+/**
+ * Polygon offset inward by `d` (mitred): each edge slides inward along its normal
+ * and consecutive offset edges are intersected. Returns one vertex per input
+ * vertex. Suitable for small offsets (border depths); large offsets on a concave
+ * shape can self-intersect — callers should validate with polygonArea.
+ */
+export function offsetPolygon(poly: Pt[], normals: Pt[], d: number): Pt[] {
+  const n = poly.length;
+  const out: Pt[] = [];
+  for (let i = 0; i < n; i++) {
+    const ep = (i - 1 + n) % n;
+    const aPrev = { x: poly[ep].x + normals[ep].x * d, y: poly[ep].y + normals[ep].y * d };
+    const dirPrev = { x: poly[i].x - poly[ep].x, y: poly[i].y - poly[ep].y };
+    const aCur = { x: poly[i].x + normals[i].x * d, y: poly[i].y + normals[i].y * d };
+    const dirCur = { x: poly[(i + 1) % n].x - poly[i].x, y: poly[(i + 1) % n].y - poly[i].y };
+    const hit = lineIntersect(aPrev, dirPrev, aCur, dirCur);
+    out.push(hit ? { x: round(hit.x), y: round(hit.y) } : { x: round(aCur.x), y: round(aCur.y) });
+  }
+  return out;
+}
+
 /** x where edge a→b crosses horizontal line y, clamped to the edge's extent. */
 function clampedEdgeX(a: Pt, b: Pt, y: number): number {
   if (Math.abs(b.y - a.y) < EPS) return (a.x + b.x) / 2; // horizontal edge

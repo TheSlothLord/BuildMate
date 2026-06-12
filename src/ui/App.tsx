@@ -54,6 +54,9 @@ export function App() {
   const result = useMemo(() => optimize(project), [project]);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Which deck's corner-point editor popup is open (index, or null).
+  const [pointsEditor, setPointsEditor] = useState<number | null>(null);
+
   // Check GitHub for a newer release (public repo, unauthenticated).
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [updateDismissed, setUpdateDismissed] = useState(false);
@@ -226,30 +229,16 @@ export function App() {
               </>
             )}
             {d.shape === 'custom' && (
-              <div className="points-edit">
-                <Field label="Corner points (x, y mm)" hint="Polygon corners in order around the outline. x runs along the planks; y goes across rows (down the plan). The bounding box sets the deck size. At least 3 points; non-convex shapes are allowed." />
-                {(d.points ?? []).map((p, pi) => (
-                  <div className="row" key={pi}>
-                    <input type="number" aria-label={`Point ${pi + 1} x`} value={p.x}
-                      onChange={(e) => updateDeck(i, { points: d.points.map((q, qi) => (qi === pi ? { ...q, x: Number(e.target.value) } : q)) })} />
-                    <input type="number" aria-label={`Point ${pi + 1} y`} value={p.y}
-                      onChange={(e) => updateDeck(i, { points: d.points.map((q, qi) => (qi === pi ? { ...q, y: Number(e.target.value) } : q)) })} />
-                    <button className="btn secondary" title="Remove this point" disabled={d.points.length <= 3}
-                      onClick={() => updateDeck(i, { points: d.points.filter((_, qi) => qi !== pi) })}>✕</button>
-                  </div>
-                ))}
-                <button className="btn secondary" style={{ fontSize: 12, padding: 6 }}
-                  onClick={() => updateDeck(i, { points: [...(d.points ?? []), { x: 0, y: 0 }] })}>+ Add point</button>
-              </div>
+              <button className="btn secondary" style={{ fontSize: 12, padding: 6 }} onClick={() => setPointsEditor(i)}>
+                ✎ Edit corner points ({(d.points ?? []).length})
+              </button>
             )}
             <Num label="Board spacing (mm)" hint="Backing-board (joist) spacing for THIS deck, centre to centre. Seams may only land on a board." value={d.spacing} onChange={(v) => updateDeck(i, { spacing: v })} />
             <Num label="Edge board inset (mm)" hint={`Centre of the edge backing boards, measured in from each deck edge. Minimum ${minInset} mm (half the backing-board width).`} value={d.firstOffset} onChange={(v) => updateDeck(i, { firstOffset: Math.max(minInset, v) })} />
             <Field label="No seams (single boards)" hint="For short decks: lay one full-length board per row with no butt joints. Each board must be at least as long as the deck; board spacing is then ignored for the layout.">
               <input type="checkbox" checked={d.noSeams} onChange={(e) => updateDeck(i, { noSeams: e.target.checked })} />
             </Field>
-            {d.shape !== 'custom' && (
-              <Num label="Border boards" hint="Picture-frame border: number of decking boards run around the whole deck perimeter (0 = none). The planking field shrinks to fit inside the border. On an L-shape the frame follows the full outline, including the notch corner." value={d.borderBoards} onChange={(v) => updateDeck(i, { borderBoards: Math.max(0, Math.round(v)) })} />
-            )}
+            <Num label="Border boards" hint="Picture-frame border: number of decking boards run around the whole deck perimeter (0 = none). The planking field shrinks to fit inside the border. The frame follows the full outline — including an L-shape notch or a custom polygon's edges (mitred corners)." value={d.borderBoards} onChange={(v) => updateDeck(i, { borderBoards: Math.max(0, Math.round(v)) })} />
             {d.shape !== 'custom' && d.borderBoards > 0 && (
               <Field label="Corner style" hint="How the border boards meet at the corners. Mitered = 45° cuts; the butt options choose which pair of sides runs full-length (staggered alternates ring by ring).">
                 <select value={d.cornerStyle} onChange={(e) => updateDeck(i, { cornerStyle: e.target.value as CornerStyle })}>
@@ -337,6 +326,40 @@ export function App() {
       </aside>
 
       <Results result={result} endGap={project.gaps.endGap} />
+
+      {pointsEditor !== null && project.decks[pointsEditor] && (
+        <div className="modal-backdrop" onClick={() => setPointsEditor(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Corner points">
+            <div className="modal-head">
+              <strong>Corner points — {project.decks[pointsEditor].label}</strong>
+              <button className="x" aria-label="Close" onClick={() => setPointsEditor(null)}>✕</button>
+            </div>
+            <p className="tagline">Corners in order around the outline. <b>x</b> runs along the planks; <b>y</b> goes across rows (down the plan). The bounding box sets the deck size. At least 3 points; non-convex shapes are allowed.</p>
+            <div className="points-list">
+              <div className="row points-head"><span className="pt-idx">#</span><span>x (mm)</span><span>y (mm)</span><span /></div>
+              {(project.decks[pointsEditor].points ?? []).map((p, pi) => {
+                const di = pointsEditor;
+                const pts = project.decks[di].points;
+                return (
+                  <div className="row" key={pi}>
+                    <span className="pt-idx">{pi + 1}</span>
+                    <input type="number" aria-label={`Point ${pi + 1} x`} value={p.x}
+                      onChange={(e) => updateDeck(di, { points: pts.map((q, qi) => (qi === pi ? { ...q, x: Number(e.target.value) } : q)) })} />
+                    <input type="number" aria-label={`Point ${pi + 1} y`} value={p.y}
+                      onChange={(e) => updateDeck(di, { points: pts.map((q, qi) => (qi === pi ? { ...q, y: Number(e.target.value) } : q)) })} />
+                    <button className="pt-del" title="Remove this point" disabled={pts.length <= 3}
+                      onClick={() => updateDeck(di, { points: pts.filter((_, qi) => qi !== pi) })}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="session-row">
+              <button className="btn secondary" onClick={() => updateDeck(pointsEditor, { points: [...(project.decks[pointsEditor].points ?? []), { x: 0, y: 0 }] })}>+ Add point</button>
+              <button className="btn" onClick={() => setPointsEditor(null)}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

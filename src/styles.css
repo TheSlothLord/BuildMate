@@ -160,6 +160,34 @@ table.cuts th { color: var(--muted); font-weight: 600; }
   padding: 4px 10px; border-radius: 12px; pointer-events: none;
 }
 
+/* corner-point editor popup */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 1100; background: rgba(0,0,0,.5);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.modal {
+  width: 100%; max-width: 420px; max-height: 85vh; overflow: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 16px; box-shadow: 0 12px 40px rgba(0,0,0,.4);
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.modal-head .x {
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--ink);
+  border-radius: 6px; cursor: pointer; width: 26px; height: 26px; font-size: 13px;
+}
+.points-list { margin: 8px 0; }
+.points-list .row { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
+.points-list .row input { flex: 1; width: auto; padding: 6px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: var(--ink); font-size: 13px; }
+.points-list .pt-idx { width: 22px; color: var(--muted); font-size: 12px; text-align: center; }
+.points-head { color: var(--muted); font-size: 12px; }
+.points-head span { flex: 1; }
+.points-head .pt-idx { flex: none; }
+.pt-del {
+  width: 30px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink);
+  border-radius: 6px; cursor: pointer; padding: 6px 0;
+}
+.pt-del:disabled { opacity: .4; cursor: not-allowed; }
+
 /* ---- phones / narrow screens: stack the sidebar above the deck view ---- */
 @media (max-width: 860px) {
   .app { grid-template-columns: 1fr; }

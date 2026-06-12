@@ -1,0 +1,24 @@
+# Normalize line endings: store text as LF in the repo.
+* text=auto eol=lf
+
+# Windows scripts stay CRLF in the working tree
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+*.ps1  text eol=crlf
+
+# Unix scripts / Gradle wrapper stay LF
+*.sh    text eol=lf
+gradlew text eol=lf
+
+# Binary assets — never normalize or diff
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.ico      binary
+*.webp     binary
+*.jar      binary
+*.keystore binary
+*.apk      binary
+*.aab      binary
+*.zip      binary

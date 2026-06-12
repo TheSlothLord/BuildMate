@@ -6,6 +6,7 @@ import { defaultProject } from '../model/defaults';
 import { optimize } from '../engine/optimize';
 import { saveFile } from '../platform/save';
 import { listProjects, loadProject, saveProject, deleteProject } from '../platform/library';
+import { APP_VERSION, checkForUpdate, type UpdateInfo } from '../platform/updates';
 import { Results } from './Results';
 
 const MODES: { value: StaggerMode; label: string; desc: string }[] = [
@@ -49,6 +50,11 @@ export function App() {
   const [project, setProject] = useState<Project>(defaultProject);
   const result = useMemo(() => optimize(project), [project]);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Check GitHub for a newer release (public repo, unauthenticated).
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [updateDismissed, setUpdateDismissed] = useState(false);
+  useEffect(() => { checkForUpdate().then(setUpdate); }, []);
 
   // ---- internal library ----
   const [saved, setSaved] = useState<string[]>([]);
@@ -138,8 +144,16 @@ export function App() {
   return (
     <div className="app">
       <aside className="sidebar">
-        <h1>DeckBuilder</h1>
+        <h1>DeckBuilder <span className="ver">v{APP_VERSION}</span></h1>
         <p className="tagline">Plank layout & cut optimizer</p>
+
+        {update && !updateDismissed && (
+          <div className="update-banner">
+            <span>Update available: <strong>v{update.latest}</strong></span>
+            <a className="btn" href={update.url} target="_blank" rel="noreferrer">Get it</a>
+            <button className="x" onClick={() => setUpdateDismissed(true)} aria-label="Dismiss">✕</button>
+          </div>
+        )}
 
         <h2>Projects</h2>
         <Field label="Name" hint="Name to save the current project under, in the app's own storage.">

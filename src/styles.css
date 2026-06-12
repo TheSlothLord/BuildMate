@@ -30,6 +30,15 @@ body { margin: 0; background: var(--bg); color: var(--ink); }
 .main { padding: 20px 24px; overflow-x: auto; }
 
 h1 { font-size: 18px; margin: 0 0 2px; }
+.ver { font-size: 11px; font-weight: 600; color: var(--muted); vertical-align: middle; }
+.update-banner {
+  display: flex; align-items: center; gap: 8px; margin: 8px 0;
+  background: #1d3526; border: 1px solid #2c5740; color: var(--good);
+  border-radius: 8px; padding: 8px 10px; font-size: 13px;
+}
+.update-banner span { flex: 1; }
+.update-banner .btn { width: auto; margin: 0; padding: 6px 10px; font-size: 12px; background: var(--good); color: #0c1f14; }
+.update-banner .x { border: none; background: transparent; color: var(--good); cursor: pointer; font-size: 14px; padding: 2px 4px; }
 h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
 .tagline { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
 

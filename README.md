@@ -23,6 +23,8 @@ from one React/TypeScript codebase.
   short decks, and **edge handling** (rip / overhang / gap).
 - **Visual plan** — interactive SVG, full-screen **pinch-zoom**, and **PNG export**.
 - **Save/Load** projects as `.deck` files (native share sheet on Android).
+- **Update check** — on launch the app compares its version against the latest
+  GitHub release and shows a banner linking to the download when a newer one exists.
 
 ## Download
 

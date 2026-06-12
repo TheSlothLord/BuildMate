@@ -43,11 +43,23 @@ export type BackingSpan =
   | 'field' // joists only under the planking field (inside the frame)
   | 'whole'; // joists under the whole deck, including beneath the border
 
+/** Overall deck outline. */
+export type DeckShape =
+  | 'rect' // plain rectangle
+  | 'lshape'; // rectangle with a rectangular notch cut from one corner
+
+/** Which corner of the bounding rectangle the L-shape notch is removed from. */
+export type NotchCorner = 'TL' | 'TR' | 'BL' | 'BR';
+
 export interface Deck {
   id: string;
   label: string;
-  length: mm; // run direction (planks)
-  width: mm; // across rows
+  shape: DeckShape; // outline: plain rectangle or L-shape
+  length: mm; // run direction (planks) — bounding length for an L-shape
+  width: mm; // across rows — bounding width for an L-shape
+  notchLength: mm; // L-shape: notch extent along the run (length) direction
+  notchWidth: mm; // L-shape: notch extent across the width direction
+  notchCorner: NotchCorner; // L-shape: which corner is removed
   spacing: mm; // backing-board (joist) spacing, centre-to-centre — per deck
   firstOffset: mm; // edge-board inset: centre of the edge backing boards, this far in from each edge
   noSeams: boolean; // force single full-length boards per row (no butt joints)
@@ -121,9 +133,11 @@ export interface Row {
   index: number;
   widthMm: mm; // the board's actual width as laid (plank width, or the rip width)
   yStartMm: mm; // position across the deck
+  xStartMm: mm; // field-local x where this row's planking begins (0 unless an L-shape notch shifts it)
+  runLengthMm: mm; // length of this row's plank run (shortened for rows that meet an L-shape notch)
   kind: RowKind;
   overhangMm?: mm; // for 'extra' rows: how much the board overhangs
-  seams: mm[]; // joist positions of interior seams
+  seams: mm[]; // joist positions of interior seams (field-local, absolute along the length)
   segments: Segment[];
 }
 
@@ -140,6 +154,14 @@ export interface BorderBoard {
   reusedOffcut: boolean;
 }
 
+/** The rectangular region removed from one corner for an L-shaped deck (deck coords). */
+export interface Notch {
+  x: mm;
+  y: mm;
+  w: mm;
+  h: mm;
+}
+
 export interface DeckLayout {
   deckId: string;
   label: string;
@@ -148,6 +170,7 @@ export interface DeckLayout {
   plankWidthMm: mm; // full board width, for drawing rips / overhangs
   fieldInsetMm: mm; // border depth: the planking field is inset this far on all sides
   joistSpanWhole: boolean; // joists drawn across the whole deck (true) or the field only (false)
+  notch?: Notch; // L-shape: the removed corner rectangle, in deck coordinates
   borderBoards: BorderBoard[];
   joists: mm[]; // joist centre positions in DECK coordinates (for drawing)
   rows: Row[]; // field-local rows

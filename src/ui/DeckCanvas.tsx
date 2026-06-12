@@ -1,4 +1,4 @@
-import type { DeckLayout, Row } from '../model/types';
+import type { DeckLayout, Notch, Row } from '../model/types';
 
 interface Props {
   layout: DeckLayout;
@@ -6,6 +6,19 @@ interface Props {
 }
 
 const TARGET_W = 820; // px the deck length is scaled to
+const EPS = 1e-6;
+
+/** Corner-notched (L-shape) outline as point pairs in deck coords, clockwise. */
+function lOutlinePoints(L: number, W: number, n: Notch): Array<[number, number]> {
+  const left = n.x < EPS; // notch hugs the left edge
+  const top = n.y < EPS; // notch hugs the top edge
+  const w = n.w;
+  const h = n.h;
+  if (top && left) return [[w, 0], [L, 0], [L, W], [0, W], [0, h], [w, h]];
+  if (top && !left) return [[0, 0], [L - w, 0], [L - w, h], [L, h], [L, W], [0, W]];
+  if (!top && left) return [[0, 0], [L, 0], [L, W], [w, W], [w, W - h], [0, W - h]];
+  return [[0, 0], [L, 0], [L, W - h], [L - w, W - h], [L - w, W], [0, W]]; // bottom-right
+}
 
 export function DeckCanvas({ layout, endGap }: Props) {
   const s = TARGET_W / layout.lengthMm; // px per mm
@@ -13,7 +26,6 @@ export function DeckCanvas({ layout, endGap }: Props) {
   const padTop = 8;
   const pw = layout.plankWidthMm;
   const fi = layout.fieldInsetMm || 0; // border depth
-  const fieldL = layout.lengthMm - 2 * fi;
   const fieldW = layout.widthMm - 2 * fi;
 
   // field origin in px, and helpers to map field-local mm -> px
@@ -32,6 +44,11 @@ export function DeckCanvas({ layout, endGap }: Props) {
   const h = contentBottom * s + padTop * 2;
   const seamGapPx = Math.max(1.5, endGap * s);
   const planks = layout.rows.filter((r) => r.kind !== 'gap');
+  const outlinePts = layout.notch
+    ? lOutlinePoints(layout.lengthMm, layout.widthMm, layout.notch)
+        .map(([x, y]) => `${padX + x * s},${padTop + y * s}`)
+        .join(' ')
+    : null;
 
   return (
     <svg
@@ -41,8 +58,12 @@ export function DeckCanvas({ layout, endGap }: Props) {
       role="img"
       aria-label={`Plank layout for ${layout.label}`}
     >
-      {/* deck outline */}
-      <rect x={padX} y={padTop} width={layout.lengthMm * s} height={layout.widthMm * s} fill="none" stroke="var(--line)" />
+      {/* deck outline (L-shape = notched polygon) */}
+      {outlinePts ? (
+        <polygon points={outlinePts} fill="none" stroke="var(--line)" />
+      ) : (
+        <rect x={padX} y={padTop} width={layout.lengthMm * s} height={layout.widthMm * s} fill="none" stroke="var(--line)" />
+      )}
 
       {/* perimeter border boards (mitred = polygon, butt = rect) */}
       {layout.borderBoards.map((bb, i) => {
@@ -82,11 +103,12 @@ export function DeckCanvas({ layout, endGap }: Props) {
       {planks.map((row) => {
         const y = foy + row.yStartMm * s;
         const rh = row.widthMm * s;
+        const rowEnd = row.xStartMm + row.runLengthMm; // shortened for L-shape notch rows
         return (
           <g key={`r${row.index}`}>
             {row.segments.map((seg, i) => {
               const x0 = seg.startMm;
-              const x1 = i < row.segments.length - 1 ? row.segments[i + 1].startMm : fieldL;
+              const x1 = i < row.segments.length - 1 ? row.segments[i + 1].startMm : rowEnd;
               const left = fox + x0 * s + (i === 0 ? 0 : seamGapPx / 2);
               const right = fox + x1 * s - (i === row.segments.length - 1 ? 0 : seamGapPx / 2);
               const segW = Math.max(0, right - left);
@@ -116,14 +138,20 @@ export function DeckCanvas({ layout, endGap }: Props) {
 
       {/* width-fit overlays: rip cut-off, extra overhang + edge, gap placeholder */}
       {layout.rows.map((row) => (
-        <EdgeOverlay key={`o${row.index}`} row={row} s={s} foy={foy} pw={pw} X0={fox} X1={fox + fieldL * s} fieldBottomY={fieldBottomY} />
+        <EdgeOverlay key={`o${row.index}`} row={row} s={s} foy={foy} pw={pw} X0={fox + row.xStartMm * s} X1={fox + (row.xStartMm + row.runLengthMm) * s} fieldBottomY={fieldBottomY} />
       ))}
 
       {/* backing boards (joists) — in deck coords, across the whole deck or the field */}
       {layout.joists.map((j, i) => {
         const x = padX + j * s;
-        const jy1 = layout.joistSpanWhole ? padTop : foy;
-        const jy2 = layout.joistSpanWhole ? padTop + layout.widthMm * s : fieldBottomY;
+        let jy1 = layout.joistSpanWhole ? padTop : foy;
+        let jy2 = layout.joistSpanWhole ? padTop + layout.widthMm * s : fieldBottomY;
+        // L-shape: a joist passing through the notch x-span stops at the notch edge.
+        const n = layout.notch;
+        if (n && j > n.x + EPS && j < n.x + n.w - EPS) {
+          if (n.y < EPS) jy1 = padTop + n.h * s; // notch on top
+          else jy2 = padTop + (layout.widthMm - n.h) * s; // notch on bottom
+        }
         return (
           <g key={`j${i}`}>
             <line x1={x} x2={x} y1={jy1} y2={jy2} stroke="var(--joist)" strokeWidth={1.6} strokeDasharray="7 5" strokeOpacity={0.9}>

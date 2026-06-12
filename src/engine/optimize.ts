@@ -55,9 +55,18 @@ export function optimize(project: Project): Result {
     const deckLetter = deckLabel(deckIndex);
     const deckWarnings: string[] = [];
 
+    const shape = deck.shape ?? 'rect';
+
     // Framed border: N rings of boards around the perimeter; the planking field
-    // shrinks by the border depth on all four sides.
-    const N = Math.max(0, Math.floor(deck.borderBoards || 0));
+    // shrinks by the border depth on all four sides. Borders aren't supported on
+    // L-shaped decks yet, so they're ignored there.
+    let N = Math.max(0, Math.floor(deck.borderBoards || 0));
+    if (shape !== 'rect' && N > 0) {
+      deckWarnings.push(
+        `"${deck.label}": picture-frame borders aren't supported on L-shaped decks yet — border ignored.`,
+      );
+      N = 0;
+    }
     let bd = N > 0 ? N * plank.width + N * gaps.sideGap : 0;
     if (bd > 0 && (deck.length - 2 * bd < plank.width || deck.width - 2 * bd < plank.width)) {
       deckWarnings.push(
@@ -82,6 +91,40 @@ export function optimize(project: Project): Result {
       seams = legalSeams(field, backingBoardWidth);
     }
     const slots = rowSlots(field, plank.width, gaps, widthFit);
+
+    // L-shape: a rectangular notch removed from one corner. Borders are disabled
+    // for L-shapes (above), so field === deck and notch coords are deck coords.
+    const nl0 = round(deck.notchLength || 0);
+    const nw0 = round(deck.notchWidth || 0);
+    const hasNotch =
+      shape === 'lshape' &&
+      nl0 > 0 &&
+      nw0 > 0 &&
+      nl0 < field.length - EPS &&
+      nw0 < field.width - EPS;
+    if (shape === 'lshape' && !hasNotch && (nl0 > 0 || nw0 > 0))
+      deckWarnings.push(
+        `"${deck.label}": the notch (${nl0}×${nw0} mm) doesn't fit inside the ${field.length}×${field.width} mm deck — showing a plain rectangle. Reduce the notch size.`,
+      );
+    const corner = deck.notchCorner ?? 'TR';
+    const onLeft = corner === 'TL' || corner === 'BL';
+    const onTop = corner === 'TL' || corner === 'TR';
+    const notch = hasNotch
+      ? {
+          x: onLeft ? 0 : round(field.length - nl0),
+          y: onTop ? 0 : round(field.width - nw0),
+          w: nl0,
+          h: nw0,
+        }
+      : undefined;
+    // Per-row plank run: full deck length, unless the row meets the notch band.
+    const rowRun = (slot: { yStartMm: number; widthMm: number }) => {
+      if (!hasNotch) return { xStart: 0, runLength: field.length };
+      const mid = slot.yStartMm + slot.widthMm / 2;
+      const inBand = onTop ? mid < nw0 - EPS : mid > field.width - nw0 + EPS;
+      if (!inBand) return { xStart: 0, runLength: field.length };
+      return { xStart: onLeft ? nl0 : 0, runLength: round(field.length - nl0) };
+    };
 
     // Friendly, deck-level diagnostics — computed BEFORE the expensive candidate
     // enumeration so a bad value (e.g. a tiny spacing) can't blow up the engine.
@@ -117,18 +160,26 @@ export function optimize(project: Project): Result {
       guard = true;
     }
 
-    const candidatesPerRow: RowCandidate[][] = slots.map((slot) => {
+    // Each row is laid out in its own local 0..runLength frame (so cut-length and
+    // min-piece logic are run-relative), then seam positions are shifted to
+    // absolute deck coords so the cross-row stagger rules stay aligned.
+    const runs = slots.map(rowRun);
+    const candidatesPerRow: RowCandidate[][] = slots.map((slot, i) => {
       if (guard || slot.kind === 'gap') return []; // gap rows are intentionally empty
-      if (field.noSeams) return [{ seams: [] as number[], cutLengths: [field.length], estWaste: 0 }];
-      return generateRowCandidates({
-        length: field.length,
-        legalSeams: seams,
+      const { xStart, runLength } = runs[i];
+      if (field.noSeams) return [{ seams: [] as number[], cutLengths: [runLength], estWaste: 0 }];
+      const localSeams = seams.filter((s) => s > xStart + EPS && s < xStart + runLength - EPS).map((s) => round(s - xStart));
+      const local = generateRowCandidates({
+        length: runLength,
+        legalSeams: localSeams,
         endGap: gaps.endGap,
         minPieceLength: stagger.minPieceLength,
         maxUsable,
         stockLengths,
         kerf: cut.kerf,
       });
+      if (xStart === 0) return local;
+      return local.map((c) => ({ ...c, seams: c.seams.map((s) => round(s + xStart)) }));
     });
 
     if (!guard) {
@@ -144,19 +195,23 @@ export function optimize(project: Project): Result {
 
     const rows: Row[] = selections.map((sel, r) => {
       const slot = slots[r];
+      const { xStart, runLength } = runs[r];
       // Unsolvable row (no candidate fit): render an empty band, emit no demand.
       if (candidatesPerRow[r].length === 0) {
         return {
           index: r,
           widthMm: slot.widthMm,
           yStartMm: slot.yStartMm,
+          xStartMm: xStart,
+          runLengthMm: runLength,
           kind: slot.kind,
           overhangMm: slot.overhangMm,
           seams: [],
           segments: [],
         };
       }
-      const boundaries = [0, ...sel.seams, field.length];
+      // sel.seams are absolute deck coords; boundaries span the row's own run.
+      const boundaries = [xStart, ...sel.seams, round(xStart + runLength)];
       const segments: Segment[] = [];
       for (let i = 0; i < boundaries.length - 1; i++) {
         const startPos = boundaries[i];
@@ -182,6 +237,8 @@ export function optimize(project: Project): Result {
         index: r,
         widthMm: slot.widthMm,
         yStartMm: slot.yStartMm,
+        xStartMm: xStart,
+        runLengthMm: runLength,
         kind: slot.kind,
         overhangMm: slot.overhangMm,
         seams: sel.seams,
@@ -304,6 +361,7 @@ export function optimize(project: Project): Result {
       plankWidthMm: plank.width,
       fieldInsetMm: bd,
       joistSpanWhole: wholeSpan,
+      notch,
       borderBoards,
       joists,
       rows,

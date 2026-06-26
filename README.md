@@ -82,7 +82,9 @@ and **offcut reuse**), drawing from your **on-hand inventory first** and then li
 exactly what to **buy** for the shortfall. Click any cut-list row — or a plank in the
 plan — to see how that stock plank is cut: each piece in order, the saw kerf between
 them, and the trailing offcut/scrap. Bevelled ends show the **cut angle** and which
-edge the length measures (the long edge). Every results table sorts by any column.
+edge the length measures (the long edge). Step through planks with **← / →**, and
+**tick each off as you cut it** (with a progress count). Every results table sorts by
+any column.
 
 ## Download
 

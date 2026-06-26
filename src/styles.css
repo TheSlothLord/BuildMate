@@ -196,6 +196,16 @@ table.cuts th { color: var(--muted); font-weight: 600; }
 
 /* wider modal for the cut-plan view */
 .modal.modal-wide { max-width: 840px; }
+.modal-nav { display: flex; gap: 6px; }
+.modal-head .pos { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 4px; }
+
+/* cut-list check-off */
+.cut-progress { display: flex; align-items: center; gap: 10px; margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
+.cut-progress .btn { width: auto; margin: 0; padding: 4px 10px; font-size: 12px; }
+.cuts td.check { text-align: center; }
+.cuts td.check input { cursor: pointer; }
+.cuts tr.done td { opacity: 0.45; }
+.cuts tr.done td.check { opacity: 1; }
 
 /* stock-bar cut plan */
 .barview { margin-top: 4px; }

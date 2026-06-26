@@ -11,7 +11,10 @@ interface Props {
 }
 
 const m = (mm: number) => `${(mm / 1000).toFixed(2)} m`;
-const barNum = (id: string) => parseInt(id.replace(/\D/g, ''), 10) || 0;
+/** The clean board name for a cut piece (drops any bevel annotation). */
+const pieceName = (usedIn: string) => usedIn.split(' ·')[0].split(' bevel')[0];
+const firstName = (c: CutInstruction) => (c.pieces[0] ? pieceName(c.pieces[0].usedIn) : c.barId);
+const cmpName = (a: CutInstruction, b: CutInstruction) => firstName(a).localeCompare(firstName(b), undefined, { numeric: true });
 
 /** Small reusable column-sort state: click a header to toggle asc/desc. */
 function useTableSort<K extends string>(initial: K) {
@@ -30,7 +33,7 @@ export function Results({ result, endGap, cut }: Props) {
 
   // Cut-list cut plan popup + sortable tables.
   const [barView, setBarView] = useState<{ barId: string; highlight?: string } | null>(null);
-  const cutSort = useTableSort<'barId' | 'stockLength' | 'cuts' | 'remainder'>('barId');
+  const cutSort = useTableSort<'name' | 'stockLength' | 'cuts' | 'remainder'>('name');
   const shopSort = useTableSort<'length' | 'count' | 'cost'>('length');
   const bomSort = useTableSort<'stockLength' | 'source' | 'count' | 'cost'>('stockLength');
 
@@ -39,7 +42,7 @@ export function Results({ result, endGap, cut }: Props) {
       cutSort.sort.key === 'stockLength' ? a.stockLength - b.stockLength :
       cutSort.sort.key === 'cuts' ? a.cuts - b.cuts :
       cutSort.sort.key === 'remainder' ? a.endRemainder - b.endRemainder :
-      barNum(a.barId) - barNum(b.barId),
+      cmpName(a, b),
     ),
   );
   const sortedShopping = [...shoppingList].sort((a, b) =>
@@ -123,6 +126,7 @@ export function Results({ result, endGap, cut }: Props) {
         <Stat k="Waste" v={`${stats.wastePct}%`} cls={stats.wastePct <= 12 ? 'good' : 'warn'} />
         <Stat k="Kerf loss" v={m(stats.kerfLoss)} />
         <Stat k="Scrap" v={m(stats.scrap)} />
+        <Stat k="Offcut" v={m(Math.max(0, stats.purchasedLength - stats.surfaceLength))} title="All stock not laid on the deck — saw kerf + scrap + unused offcuts" />
         {stats.cost != null && <Stat k="Buy cost" v={stats.cost.toFixed(2)} />}
       </div>
 
@@ -206,10 +210,10 @@ export function Results({ result, endGap, cut }: Props) {
         <thead>
           <tr>
             <th aria-label="Cut off" title="Tick when cut">✓</th>
-            <th className="sortable" onClick={() => cutSort.toggle('barId')}>Stock{cutSort.arrow('barId')}</th>
-            <th className="sortable" onClick={() => cutSort.toggle('stockLength')}>Length{cutSort.arrow('stockLength')}</th>
+            <th className="sortable" onClick={() => cutSort.toggle('name')}>Name{cutSort.arrow('name')}</th>
+            <th className="sortable" onClick={() => cutSort.toggle('stockLength')}>Stock{cutSort.arrow('stockLength')}</th>
             <th className="sortable" onClick={() => cutSort.toggle('cuts')}>Cuts{cutSort.arrow('cuts')}</th>
-            <th>Boards (length)</th>
+            <th>Length</th>
             <th className="sortable" onClick={() => cutSort.toggle('remainder')}>Remainder{cutSort.arrow('remainder')}</th>
           </tr>
         </thead>
@@ -217,16 +221,18 @@ export function Results({ result, endGap, cut }: Props) {
           {sortedCuts.map((c) => (
             <tr key={c.barId} className={`clickable${done.has(c.barId) ? ' done' : ''}`} onClick={() => openBar(c.barId)} title="Show this plank's cut plan">
               <td className="check" onClick={(e) => e.stopPropagation()}>
-                <input type="checkbox" checked={done.has(c.barId)} onChange={() => toggleDone(c.barId)} aria-label={`Mark ${c.barId} cut`} />
+                <input type="checkbox" checked={done.has(c.barId)} onChange={() => toggleDone(c.barId)} aria-label={`Mark ${firstName(c)} cut`} />
               </td>
-              <td>{c.barId}</td>
+              <td>
+                {c.pieces.map((p, i) => (
+                  <span className={`tag${i > 0 ? ' reuse' : ''}`} key={i}>{pieceName(p.usedIn)}</span>
+                ))}
+              </td>
               <td>{c.stockLength} mm <span className={`src ${c.source}`}>{c.source === 'onhand' ? 'inv' : 'buy'}</span></td>
               <td>{c.cuts}</td>
               <td>
                 {c.pieces.map((p, i) => (
-                  <span className={`tag${i > 0 ? ' reuse' : ''}`} key={i}>
-                    {p.usedIn} <span className="tag-len">{p.lengthMm}</span>
-                  </span>
+                  <span className={`tag${i > 0 ? ' reuse' : ''}`} key={i}>{p.lengthMm}</span>
                 ))}
               </td>
               <td className={c.isScrap ? 'scrap' : ''}>
@@ -243,7 +249,7 @@ export function Results({ result, endGap, cut }: Props) {
         <div className="modal-backdrop" onClick={() => setBarView(null)}>
           <div className="modal modal-wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Cut plan for ${shownBar.barId}`}>
             <div className="modal-head">
-              <strong>Cut plan — {shownBar.barId} <span className="pos">{shownIdx + 1} / {sortedCuts.length}</span></strong>
+              <strong>Cut plan — {shownBar.pieces.map((p) => pieceName(p.usedIn)).join(' · ') || shownBar.barId} <span className="pos">{shownIdx + 1} / {sortedCuts.length}</span></strong>
               <div className="modal-nav">
                 <button className="x" aria-label="Previous plank" title="Previous (←)" onClick={() => navBar(-1)} disabled={shownIdx <= 0}>◀</button>
                 <button className="x" aria-label="Next plank" title="Next (→)" onClick={() => navBar(1)} disabled={shownIdx >= sortedCuts.length - 1}>▶</button>
@@ -258,9 +264,9 @@ export function Results({ result, endGap, cut }: Props) {
   );
 }
 
-function Stat({ k, v, cls }: { k: string; v: string; cls?: string }) {
+function Stat({ k, v, cls, title }: { k: string; v: string; cls?: string; title?: string }) {
   return (
-    <div className="stat">
+    <div className="stat" title={title}>
       <div className={`v ${cls ?? ''}`}>{v}</div>
       <div className="k">{k}</div>
     </div>

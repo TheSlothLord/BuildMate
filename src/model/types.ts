@@ -117,6 +117,13 @@ export interface Project {
   widthFit: WidthFit;
   backingBoardWidth: mm; // physical width of a backing board; min edge inset = half this
   decks: Deck[];
+  /**
+   * A frozen seam layout. When set, the engine keeps these exact plank/seam
+   * placements and only re-runs the cut-stock packing against the current stock —
+   * so editing inventory/store updates the cut & shopping lists without changing
+   * the pattern you're building to. Cleared to return to live layout.
+   */
+  lockedLayouts?: DeckLayout[];
 }
 
 // ---------------- results ----------------
@@ -139,6 +146,7 @@ export interface Segment {
   drawStartMm?: mm; // custom shapes: physical start incl. bevel overhang (for drawing)
   drawEndMm?: mm; // custom shapes: physical end incl. bevel overhang
   cuts?: AngledCut[]; // bevelled ends, if any (custom shapes)
+  cutShape?: DeckPoint[]; // true outline for the cut plan (bevelled custom planks)
 }
 
 /** What a row physically is, for the width-direction layout. */
@@ -169,6 +177,8 @@ export interface BorderBoard {
   w: mm; // drawn width  (= board length or plank width depending on orientation)
   h: mm; // drawn height
   points?: string; // SVG polygon points (deck coords) for mitred boards; rect used if absent
+  cuts?: AngledCut[]; // bevelled ends, for the cut plan
+  cutShape?: DeckPoint[]; // true outline, for the cut plan
   barId: string;
   reusedOffcut: boolean;
 }

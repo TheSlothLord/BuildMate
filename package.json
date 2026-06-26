@@ -1,10 +1,10 @@
 {
   "name": "deckbuilder",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "private": true,
   "type": "module",
-  "description": "Decking plank layout & cut optimizer",
-  "author": "DeckBuilder",
+  "description": "BuildMate — layout & cut-list tools for building projects (deck builder and more)",
+  "author": "BuildMate",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
@@ -33,7 +33,7 @@
   },
   "build": {
     "appId": "com.deckbuilder.app",
-    "productName": "DeckBuilder",
+    "productName": "BuildMate",
     "files": [
       "dist/**/*",
       "electron/**/*"
@@ -44,7 +44,7 @@
     "win": {
       "target": "zip",
       "signAndEditExecutable": false,
-      "artifactName": "DeckBuilder-${version}-win-x64.${ext}"
+      "artifactName": "BuildMate-${version}-win-x64.${ext}"
     }
   },
   "dependencies": {

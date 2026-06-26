@@ -1,10 +1,15 @@
-# 🪵 DeckBuilder
+# 🛠️ BuildMate
 
-**Decking plank layout & cut optimizer.** Enter your deck dimensions, board
-spacing, and the plank lengths you have or can buy — DeckBuilder snaps every seam
-to the backing-board (joist) grid, minimizes waste with offcut reuse and saw-kerf
-accounting, uses your on-hand stock first and lists what to buy for the rest, and
-draws a clean, *not-too-structured* seam pattern you can zoom into and export.
+**Layout & cut-list tools for building projects.** BuildMate opens on a launcher
+where you pick a tool. The first — and so far only — tool is the **deck builder**;
+wall siding, furniture, and fence builders are planned (shown greyed-out on the
+launcher for now).
+
+**Deck builder.** Enter your deck dimensions, board spacing, and the plank lengths
+you have or can buy — it snaps every seam to the backing-board (joist) grid,
+minimizes waste with offcut reuse and saw-kerf accounting, uses your on-hand stock
+first and lists what to buy for the rest, and draws a clean, *not-too-structured*
+seam pattern you can zoom into and export.
 
 Runs as a **web app**, a **Windows desktop app**, and an **Android 15 app** — all
 from one React/TypeScript codebase.
@@ -80,7 +85,7 @@ board to width, add an overhanging board, or leave a gap.
 
 ![A stock plank cut plan](docs/images/cut-plan.svg)
 
-DeckBuilder packs every piece into stock planks (1-D cutting-stock with saw **kerf**
+BuildMate packs every piece into stock planks (1-D cutting-stock with saw **kerf**
 and **offcut reuse**), drawing from your **on-hand inventory first** and then listing
 exactly what to **buy** for the shortfall. Click any cut-list row — or a plank in the
 plan — to see how that stock plank is cut: each piece in order, the saw kerf between
@@ -95,15 +100,15 @@ Grab the latest packaged builds from the [**Releases**](../../releases) page:
 
 | Platform | File |
 |---|---|
-| Android 15 | `DeckBuilder-vX.Y.Z.apk` (sideload) |
-| Windows | `DeckBuilder-<version>-win-x64.zip` (unzip → run `DeckBuilder.exe`) |
+| Android 15 | `BuildMate-vX.Y.Z.apk` (sideload) |
+| Windows | `BuildMate-<version>-win-x64.zip` (unzip → run `BuildMate.exe`) |
 
 See [DESIGN.md](DESIGN.md) for the full design (model, algorithm, math).
 
-## The app — `DeckBuilder-<version>-win-x64.zip`
+## The app — `BuildMate-<version>-win-x64.zip`
 
-A standalone Windows desktop app (Electron). **Unzip** `release\DeckBuilder-*-win-x64.zip`
-anywhere and run **`DeckBuilder.exe`** inside — its own window, **no console, no Node
+A standalone Windows desktop app (Electron). **Unzip** `release\BuildMate-*-win-x64.zip`
+anywhere and run **`BuildMate.exe`** inside — its own window, **no console, no Node
 install required**.
 
 > **Why a zip and not a single .exe?** A single-file portable build self-extracts to
@@ -120,7 +125,7 @@ unsigned — click **More info → Run anyway**. Code signing removes this too.
 
 ```bash
 npm install        # first time only
-npm run dist:win   # builds the UI, then packages release\DeckBuilder-<version>-win-x64.zip
+npm run dist:win   # builds the UI, then packages release\BuildMate-<version>-win-x64.zip
 ```
 
 `npm run dist:win` runs the Vite build and `electron-builder --win` (zip target).
@@ -144,7 +149,7 @@ real deliverable.
 A native Android wrapper via **Capacitor** (the same React UI in a WebView),
 targeting **API 35 (Android 15)**, minSdk 23.
 
-The built app is **`release\DeckBuilder.apk`** (debug-signed, ~4 MB).
+The built app is **`release\BuildMate.apk`** (debug-signed, ~4 MB).
 
 On Android, **Save** (`.deck` and the plan PNG) writes the file and opens the
 system **share sheet** (save to Files/Drive/email), via Capacitor Filesystem +
@@ -154,7 +159,7 @@ pinch-to-zoom plan with **PNG export**.
 ### Install it on your phone
 
 1. On your phone, open the [**Releases**](../../releases) page and download the
-   latest **`DeckBuilder-vX.Y.Z.apk`** (or copy the APK over from a PC).
+   latest **`BuildMate-vX.Y.Z.apk`** (or copy the APK over from a PC).
 2. Tap the downloaded file. Android will say installing is blocked — tap
    **Settings**, then enable **Allow from this source** for the app you opened it
    with (your browser or Files app). This is *Settings → Apps → Special access →
@@ -210,12 +215,19 @@ npm run typecheck
 
 ## Structure
 
+A small suite: a launcher picks a tool, and each tool is its own app under
+`src/apps/`. One Vite build serves them all (hash route `#/<tool>`).
+
 ```
-src/model/      types + defaults
-src/engine/     rng · grid · candidates · stagger · cutstock · polygon · optimize  (pure, testable)
-src/ui/         App (inputs) · DeckCanvas (SVG plan) · ZoomView · Results · BarView (cut plan)
-src/platform/   save (native share sheet / browser download)
-electron/       desktop main process          android/   Capacitor project
+src/main.tsx        launcher ↔ tool hash router
+src/shared/         styles.css (shared theme) + launcher tiles
+src/apps/launcher/  BuildMate front-page tile grid
+src/apps/deck/      the deck builder, self-contained:
+   ui/      App (inputs) · DeckCanvas (SVG plan) · ZoomView · Results · BarView (cut plan)
+   engine/  rng · grid · candidates · stagger · cutstock · polygon · optimize  (pure, testable)
+   model/   types + defaults
+   platform/  save (native share sheet / browser download) · library · update check
+electron/  desktop main process          android/  Capacitor project
 ```
 
 ## Releasing

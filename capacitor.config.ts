@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.deckbuilder.app',
-  appName: 'DeckBuilder',
+  appName: 'BuildMate',
   webDir: 'dist',
   android: {
     backgroundColor: '#14130f',

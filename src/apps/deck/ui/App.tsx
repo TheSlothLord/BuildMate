@@ -49,7 +49,7 @@ function normalizeProject(data: Partial<Project>): Project {
   };
 }
 
-export function App() {
+export function App({ onHome }: { onHome?: () => void }) {
   const [project, setProject] = useState<Project>(defaultProject);
   const result = useMemo(() => optimize(project), [project]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -166,7 +166,8 @@ export function App() {
   return (
     <div className="app">
       <aside className="sidebar">
-        <h1>DeckBuilder <span className="ver">v{APP_VERSION}</span></h1>
+        {onHome && <button className="home-btn" onClick={onHome} title="Back to BuildMate">‹ BuildMate</button>}
+        <h1>Deck builder <span className="ver">v{APP_VERSION}</span></h1>
         <p className="tagline">Plank layout & cut optimizer</p>
 
         {update && !updateDismissed && (

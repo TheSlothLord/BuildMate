@@ -4,6 +4,7 @@ interface Props {
   bar: CutInstruction;
   cut: CutConfig;
   highlight?: string; // a piece's usedIn label (or deck plank name) to emphasize
+  name?: string; // board name(s) to title the bar with (instead of the internal bar id)
 }
 
 const TARGET_W = 760; // px the stock length is scaled to
@@ -12,7 +13,8 @@ const PAD = 10;
 
 /** Visualises one stock plank and exactly where to cut it: pieces in cut order,
  *  the saw kerf between them, and the trailing remainder (offcut or scrap). */
-export function BarView({ bar, cut, highlight }: Props) {
+export function BarView({ bar, cut, highlight, name }: Props) {
+  const title = name || bar.barId;
   const lead = cut.squareLeadingEnd ? cut.kerf : 0;
   const s = TARGET_W / Math.max(1, bar.stockLength);
   const X = (mm: number) => PAD + mm * s;
@@ -35,12 +37,12 @@ export function BarView({ bar, cut, highlight }: Props) {
   return (
     <div className="barview">
       <div className="barview-cap">
-        <strong>{bar.barId}</strong> · {bar.stockLength} mm stock ({srcLabel}) · {bar.cuts} cut{bar.cuts === 1 ? '' : 's'} · kerf {cut.kerf} mm ·{' '}
+        <strong>{title}</strong> · {bar.stockLength} mm stock ({srcLabel}) · {bar.cuts} cut{bar.cuts === 1 ? '' : 's'} · kerf {cut.kerf} mm ·{' '}
         <span className={bar.isScrap ? 'scrap' : ''}>
           remainder {bar.endRemainder} mm{bar.isScrap ? ' (scrap)' : ' (offcut)'}
         </span>
       </div>
-      <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{ maxWidth: w, display: 'block' }} role="img" aria-label={`Cut plan for ${bar.barId}`}>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{ maxWidth: w, display: 'block' }} role="img" aria-label={`Cut plan for ${title}`}>
         {/* stock outline */}
         <rect x={PAD} y={PAD} width={bar.stockLength * s} height={BAR_H} rx={2} fill="none" stroke="var(--line)" />
 

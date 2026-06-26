@@ -23,6 +23,33 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); }
 
+/* ---- BuildMate launcher front page ---- */
+.launcher { max-width: 980px; margin: 0 auto; padding: 40px 24px 64px; }
+.launcher-head h1 { font-size: 30px; margin: 0 0 4px; }
+.launcher-head .tagline { color: var(--muted); margin: 0 0 28px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.tile {
+  position: relative; text-align: left; cursor: pointer; font: inherit;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  padding: 20px; color: var(--ink); transition: border-color .12s, transform .12s;
+  display: flex; flex-direction: column; gap: 6px; min-height: 132px;
+}
+.tile:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-2px); }
+.tile-icon { font-size: 30px; }
+.tile-name { font-weight: 700; font-size: 16px; }
+.tile-desc { color: var(--muted); font-size: 13px; }
+.tile.soon { cursor: not-allowed; opacity: .5; }
+.tile-badge {
+  position: absolute; top: 12px; right: 12px; font-size: 11px; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; background: var(--panel-2);
+}
+/* back-to-launcher link inside a tool's sidebar */
+.home-btn {
+  display: inline-block; margin-bottom: 6px; font-size: 12px; font-weight: 600;
+  background: none; border: none; color: var(--muted); cursor: pointer; padding: 0;
+}
+.home-btn:hover { color: var(--accent); }
+
 .app { display: grid; grid-template-columns: 350px 1fr; min-height: 100vh; }
 .sidebar {
   background: var(--panel); border-right: 1px solid var(--line);

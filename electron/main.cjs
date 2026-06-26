@@ -9,7 +9,7 @@ function createWindow() {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    title: 'DeckBuilder',
+    title: 'BuildMate',
     backgroundColor: '#14130f',
     autoHideMenuBar: true,
     webPreferences: {

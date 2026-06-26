@@ -15,6 +15,8 @@ const m = (mm: number) => `${(mm / 1000).toFixed(2)} m`;
 const pieceName = (usedIn: string) => usedIn.split(' ·')[0].split(' bevel')[0];
 const firstName = (c: CutInstruction) => (c.pieces[0] ? pieceName(c.pieces[0].usedIn) : c.barId);
 const cmpName = (a: CutInstruction, b: CutInstruction) => firstName(a).localeCompare(firstName(b), undefined, { numeric: true });
+/** Sort key for the Length column: the longest board cut from the bar. */
+const maxPiece = (c: CutInstruction) => c.pieces.reduce((mx, p) => Math.max(mx, p.lengthMm), 0);
 
 /** Small reusable column-sort state: click a header to toggle asc/desc. */
 function useTableSort<K extends string>(initial: K) {
@@ -30,10 +32,14 @@ export function Results({ result, endGap, cut }: Props) {
   const shoppingTotal = shoppingList.reduce((s, l) => s + (l.cost ?? 0), 0);
   const shoppingCount = shoppingList.reduce((s, l) => s + l.count, 0);
   const [zoomed, setZoomed] = useState<DeckLayout | null>(null);
+  // Waste / Offcut tiles can each toggle between metres and percent.
+  const [wasteUnit, setWasteUnit] = useState<'pct' | 'm'>('pct');
+  const [offcutUnit, setOffcutUnit] = useState<'m' | 'pct'>('m');
+  const offcutMm = Math.max(0, stats.purchasedLength - stats.surfaceLength);
 
   // Cut-list cut plan popup + sortable tables.
   const [barView, setBarView] = useState<{ barId: string; highlight?: string } | null>(null);
-  const cutSort = useTableSort<'name' | 'stockLength' | 'cuts' | 'remainder'>('name');
+  const cutSort = useTableSort<'name' | 'stockLength' | 'cuts' | 'length' | 'remainder'>('name');
   const shopSort = useTableSort<'length' | 'count' | 'cost'>('length');
   const bomSort = useTableSort<'stockLength' | 'source' | 'count' | 'cost'>('stockLength');
 
@@ -41,6 +47,7 @@ export function Results({ result, endGap, cut }: Props) {
     cutSort.sortBy(
       cutSort.sort.key === 'stockLength' ? a.stockLength - b.stockLength :
       cutSort.sort.key === 'cuts' ? a.cuts - b.cuts :
+      cutSort.sort.key === 'length' ? maxPiece(a) - maxPiece(b) :
       cutSort.sort.key === 'remainder' ? a.endRemainder - b.endRemainder :
       cmpName(a, b),
     ),
@@ -123,10 +130,12 @@ export function Results({ result, endGap, cut }: Props) {
         <Stat k="From inventory" v={String(stats.barsFromInventory)} />
         <Stat k="To buy" v={String(stats.barsToBuy)} cls={stats.barsToBuy > 0 ? 'warn' : 'good'} />
         <Stat k="Deck surface" v={m(stats.surfaceLength)} />
-        <Stat k="Waste" v={`${stats.wastePct}%`} cls={stats.wastePct <= 12 ? 'good' : 'warn'} />
+        <Stat k="Waste" v={wasteUnit === 'pct' ? `${stats.wastePct}%` : m(offcutMm)} cls={stats.wastePct <= 12 ? 'good' : 'warn'}
+          title="Material not laid on the deck — click to switch % / metres" onClick={() => setWasteUnit((u) => (u === 'pct' ? 'm' : 'pct'))} />
         <Stat k="Kerf loss" v={m(stats.kerfLoss)} />
         <Stat k="Scrap" v={m(stats.scrap)} />
-        <Stat k="Offcut" v={m(Math.max(0, stats.purchasedLength - stats.surfaceLength))} title="All stock not laid on the deck — saw kerf + scrap + unused offcuts" />
+        <Stat k="Offcut" v={offcutUnit === 'm' ? m(offcutMm) : `${stats.wastePct}%`}
+          title="All stock not laid on the deck (kerf + scrap + unused offcuts) — click to switch metres / %" onClick={() => setOffcutUnit((u) => (u === 'm' ? 'pct' : 'm'))} />
         {stats.cost != null && <Stat k="Buy cost" v={stats.cost.toFixed(2)} />}
       </div>
 
@@ -213,7 +222,7 @@ export function Results({ result, endGap, cut }: Props) {
             <th className="sortable" onClick={() => cutSort.toggle('name')}>Name{cutSort.arrow('name')}</th>
             <th className="sortable" onClick={() => cutSort.toggle('stockLength')}>Stock{cutSort.arrow('stockLength')}</th>
             <th className="sortable" onClick={() => cutSort.toggle('cuts')}>Cuts{cutSort.arrow('cuts')}</th>
-            <th>Length</th>
+            <th className="sortable" onClick={() => cutSort.toggle('length')}>Length{cutSort.arrow('length')}</th>
             <th className="sortable" onClick={() => cutSort.toggle('remainder')}>Remainder{cutSort.arrow('remainder')}</th>
           </tr>
         </thead>
@@ -256,7 +265,7 @@ export function Results({ result, endGap, cut }: Props) {
                 <button className="x" aria-label="Close" title="Close (Esc)" onClick={() => setBarView(null)}>✕</button>
               </div>
             </div>
-            <BarView bar={shownBar} cut={cut} highlight={barView?.highlight} />
+            <BarView bar={shownBar} cut={cut} highlight={barView?.highlight} name={shownBar.pieces.map((p) => pieceName(p.usedIn)).join(' · ')} />
           </div>
         </div>
       )}
@@ -264,9 +273,9 @@ export function Results({ result, endGap, cut }: Props) {
   );
 }
 
-function Stat({ k, v, cls, title }: { k: string; v: string; cls?: string; title?: string }) {
+function Stat({ k, v, cls, title, onClick }: { k: string; v: string; cls?: string; title?: string; onClick?: () => void }) {
   return (
-    <div className="stat" title={title}>
+    <div className={`stat${onClick ? ' clickable' : ''}`} title={title} onClick={onClick}>
       <div className={`v ${cls ?? ''}`}>{v}</div>
       <div className="k">{k}</div>
     </div>

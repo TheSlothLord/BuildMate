@@ -199,6 +199,9 @@ table.cuts th { color: var(--muted); font-weight: 600; }
 .modal-nav { display: flex; gap: 6px; }
 .modal-head .pos { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 4px; }
 
+.stat.clickable { cursor: pointer; }
+.stat.clickable:hover { border-color: var(--accent); }
+
 /* cut-list check-off */
 .cut-progress { display: flex; align-items: center; gap: 10px; margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
 .cut-progress .btn { width: auto; margin: 0; padding: 4px 10px; font-size: 12px; }

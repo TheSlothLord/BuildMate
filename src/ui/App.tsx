@@ -135,9 +135,13 @@ export function App() {
     // When the joists sit inside the frame, even-fit the FIELD length (deck minus border).
     const bd = d.borderBoards > 0 ? d.borderBoards * (project.plank.width + project.gaps.sideGap) : 0;
     const len = d.backingSpan === 'field' ? d.length - 2 * bd : d.length;
-    if (len <= 0) return;
-    const bays = Math.max(1, Math.ceil(len / target));
-    updateDeck(i, { spacing: Math.ceil(len / bays) });
+    // The edge backing boards are inset (see joistPositions); even spacing must
+    // divide the span *between* them, not the whole length.
+    const inset = Math.max(d.firstOffset, project.backingBoardWidth / 2);
+    const span = len - 2 * inset;
+    if (span <= 0) return;
+    const bays = Math.max(1, Math.ceil(span / target));
+    updateDeck(i, { spacing: Math.ceil(span / bays) });
   };
 
   const updateOnHand = (i: number, field: 'length' | 'quantity', v: number) =>

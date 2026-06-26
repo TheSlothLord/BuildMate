@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CutConfig, CutInstruction, DeckLayout, Result } from '../model/types';
 import { DeckCanvas } from './DeckCanvas';
 import { ZoomView } from './ZoomView';
@@ -59,6 +59,48 @@ export function Results({ result, endGap, cut }: Props) {
   );
   const openBar = (barId: string, highlight?: string) => setBarView({ barId, highlight });
   const shownBar: CutInstruction | undefined = barView ? cutList.find((c) => c.barId === barView.barId) : undefined;
+
+  // ← / → through the cut plan in the current sort order; Esc closes.
+  const shownIdx = barView ? sortedCuts.findIndex((c) => c.barId === barView.barId) : -1;
+  const navBar = (dir: number) => {
+    if (shownIdx < 0) return;
+    const ni = Math.min(sortedCuts.length - 1, Math.max(0, shownIdx + dir));
+    if (ni !== shownIdx) setBarView({ barId: sortedCuts[ni].barId });
+  };
+  useEffect(() => {
+    if (!barView) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setBarView(null);
+      else if (e.key === 'ArrowRight') { navBar(1); e.preventDefault(); }
+      else if (e.key === 'ArrowLeft') { navBar(-1); e.preventDefault(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  // Check off stock bars as they're cut (build aid). Persisted, keyed to the
+  // current cut list so a changed layout starts fresh rather than mis-aligning.
+  const cutSig = useMemo(() => cutList.map((c) => `${c.barId}:${c.stockLength}:${c.pieces.length}`).join('|'), [cutList]);
+  const [done, setDone] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const o = JSON.parse(localStorage.getItem('deckbuilder:cutdone') || '{}');
+      setDone(o.sig === cutSig && Array.isArray(o.ids) ? new Set(o.ids) : new Set());
+    } catch {
+      setDone(new Set());
+    }
+  }, [cutSig]);
+  const toggleDone = (barId: string) => setDone((prev) => {
+    const n = new Set(prev);
+    if (n.has(barId)) n.delete(barId); else n.add(barId);
+    try { localStorage.setItem('deckbuilder:cutdone', JSON.stringify({ sig: cutSig, ids: [...n] })); } catch { /* ignore */ }
+    return n;
+  });
+  const resetDone = () => {
+    setDone(new Set());
+    try { localStorage.removeItem('deckbuilder:cutdone'); } catch { /* ignore */ }
+  };
+  const doneCount = cutList.filter((c) => done.has(c.barId)).length;
 
   return (
     <div className="main">
@@ -153,10 +195,17 @@ export function Results({ result, endGap, cut }: Props) {
       </table>
 
       <h2>Cut list</h2>
-      <p className="tagline">Click a row — or a plank in a plan above — to see how that stock plank is cut. Click a column to sort.</p>
+      <p className="tagline">
+        Click a row — or a plank in a plan above — to see how that stock plank is cut. Click a column to sort. Tick a row off as you cut it.
+      </p>
+      <div className="cut-progress">
+        <span>{doneCount} / {cutList.length} bars cut</span>
+        {doneCount > 0 && <button className="btn secondary" onClick={resetDone}>Reset</button>}
+      </div>
       <table className="cuts">
         <thead>
           <tr>
+            <th aria-label="Cut off" title="Tick when cut">✓</th>
             <th className="sortable" onClick={() => cutSort.toggle('barId')}>Stock{cutSort.arrow('barId')}</th>
             <th className="sortable" onClick={() => cutSort.toggle('stockLength')}>Length{cutSort.arrow('stockLength')}</th>
             <th className="sortable" onClick={() => cutSort.toggle('cuts')}>Cuts{cutSort.arrow('cuts')}</th>
@@ -166,7 +215,10 @@ export function Results({ result, endGap, cut }: Props) {
         </thead>
         <tbody>
           {sortedCuts.map((c) => (
-            <tr key={c.barId} className="clickable" onClick={() => openBar(c.barId)} title="Show this plank's cut plan">
+            <tr key={c.barId} className={`clickable${done.has(c.barId) ? ' done' : ''}`} onClick={() => openBar(c.barId)} title="Show this plank's cut plan">
+              <td className="check" onClick={(e) => e.stopPropagation()}>
+                <input type="checkbox" checked={done.has(c.barId)} onChange={() => toggleDone(c.barId)} aria-label={`Mark ${c.barId} cut`} />
+              </td>
               <td>{c.barId}</td>
               <td>{c.stockLength} mm <span className={`src ${c.source}`}>{c.source === 'onhand' ? 'inv' : 'buy'}</span></td>
               <td>{c.cuts}</td>
@@ -191,8 +243,12 @@ export function Results({ result, endGap, cut }: Props) {
         <div className="modal-backdrop" onClick={() => setBarView(null)}>
           <div className="modal modal-wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Cut plan for ${shownBar.barId}`}>
             <div className="modal-head">
-              <strong>Cut plan — {shownBar.barId}</strong>
-              <button className="x" aria-label="Close" onClick={() => setBarView(null)}>✕</button>
+              <strong>Cut plan — {shownBar.barId} <span className="pos">{shownIdx + 1} / {sortedCuts.length}</span></strong>
+              <div className="modal-nav">
+                <button className="x" aria-label="Previous plank" title="Previous (←)" onClick={() => navBar(-1)} disabled={shownIdx <= 0}>◀</button>
+                <button className="x" aria-label="Next plank" title="Next (→)" onClick={() => navBar(1)} disabled={shownIdx >= sortedCuts.length - 1}>▶</button>
+                <button className="x" aria-label="Close" title="Close (Esc)" onClick={() => setBarView(null)}>✕</button>
+              </div>
             </div>
             <BarView bar={shownBar} cut={cut} highlight={barView?.highlight} />
           </div>

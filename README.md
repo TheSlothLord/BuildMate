@@ -29,6 +29,9 @@ from one React/TypeScript codebase.
 - **Visual plan** — interactive SVG, full-screen **pinch-zoom**, and **PNG export**.
 - **Cut plans** — click any cut-list row, or a plank in the plan, to see exactly how
   its stock plank is cut (pieces, saw kerf, offcut/scrap); sort the cut list by any column.
+- **Lock the layout** — freeze the seam pattern, then change the planks you have or
+  can buy; the cut & shopping lists re-pack to the new stock without disturbing what
+  you're already building.
 - **Save/Load** projects as `.deck` files (native share sheet on Android).
 - **Update check** — on launch the app compares its version against the latest
   GitHub release and shows a banner linking to the download when a newer one exists.

@@ -158,6 +158,11 @@ export function App() {
   const widthFit = WIDTH_FITS.find((w) => w.value === project.widthFit)!;
   const minInset = project.backingBoardWidth / 2;
 
+  // Layout lock: freeze the seam pattern, re-pack only against changing stock.
+  const locked = !!(project.lockedLayouts && project.lockedLayouts.length);
+  const toggleLock = () =>
+    patch({ lockedLayouts: locked ? undefined : JSON.parse(JSON.stringify(result.layouts)) });
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -193,15 +198,29 @@ export function App() {
           <input ref={fileRef} type="file" accept={isNative ? undefined : '.deck,application/json'} onChange={importDeck} style={{ display: 'none' }} />
         </div>
 
+        <h2>Layout</h2>
+        <button className={`btn ${locked ? '' : 'secondary'}`} onClick={toggleLock} disabled={!locked && result.layouts.length === 0}>
+          {locked ? '🔓 Unlock layout' : '🔒 Lock seam layout'}
+        </button>
+        {locked && (
+          <div className="lock-note">
+            Layout locked. Edit your on-hand / store planks freely — the cut &amp; shopping lists re-pack to the new
+            stock, but the seam pattern stays exactly as it is. Unlock to change the pattern.
+          </div>
+        )}
+
         <h2>Pattern seed</h2>
+        <fieldset className="lockwrap" disabled={locked}>
         <div className="seed-nav">
           <button onClick={() => setSeed(project.stagger.seed - 1)} disabled={project.stagger.seed <= 1} title="Previous pattern">◀</button>
           <div className="seed-label"><span>seed {project.stagger.seed}</span><small>pattern</small></div>
           <button onClick={() => setSeed(project.stagger.seed + 1)} title="Next pattern">▶</button>
           <button onClick={() => setSeed(Math.floor(Math.random() * 99999) + 1)} title="Random pattern">🎲</button>
         </div>
+        </fieldset>
 
         <h2>Decks</h2>
+        <fieldset className="lockwrap" disabled={locked}>
         {project.decks.map((d, i) => (
           <div key={d.id} className="deck-edit">
             <Text label="Name" hint="A label for this deck, shown above its plan." value={d.label} onChange={(v) => updateDeck(i, { label: v })} />
@@ -268,9 +287,12 @@ export function App() {
           </div>
         ))}
         <button className="btn secondary" onClick={addDeck}>+ Add deck</button>
+        </fieldset>
 
         <h2>Plank</h2>
-        <Num label="Width (mm)" hint="Face width of a single decking board." value={project.plank.width} onChange={(v) => patchPlank({ width: v })} />
+        <fieldset className="lockwrap" disabled={locked}>
+          <Num label="Width (mm)" hint="Face width of a single decking board." value={project.plank.width} onChange={(v) => patchPlank({ width: v })} />
+        </fieldset>
         <Num label="Thickness (mm)" hint="Board thickness (used for the bill of materials only)." value={project.plank.thickness} onChange={(v) => patchPlank({ thickness: v })} />
         <div className="lengths">
           <Field label="On hand · length · qty" hint="Planks you already own. These are used first, before buying anything." />
@@ -296,22 +318,27 @@ export function App() {
         </div>
 
         <h2>Backing boards, gaps & cutting</h2>
-        <Num label="Backing board width (mm)" hint="Physical width of a backing board (joist). The edge boards' centre can't be closer to the edge than half this." value={project.backingBoardWidth} onChange={(v) => patch({ backingBoardWidth: v })} />
-        <Num label="Side gap (mm)" hint="Gap between adjacent rows of boards (along the width)." value={project.gaps.sideGap} onChange={(v) => patchGaps({ sideGap: v })} />
-        <Num label="End gap (mm)" hint="Expansion gap at a butt joint where two boards meet over a backing board." value={project.gaps.endGap} onChange={(v) => patchGaps({ endGap: v })} />
+        <fieldset className="lockwrap" disabled={locked}>
+          <Num label="Backing board width (mm)" hint="Physical width of a backing board (joist). The edge boards' centre can't be closer to the edge than half this." value={project.backingBoardWidth} onChange={(v) => patch({ backingBoardWidth: v })} />
+          <Num label="Side gap (mm)" hint="Gap between adjacent rows of boards (along the width)." value={project.gaps.sideGap} onChange={(v) => patchGaps({ sideGap: v })} />
+          <Num label="End gap (mm)" hint="Expansion gap at a butt joint where two boards meet over a backing board." value={project.gaps.endGap} onChange={(v) => patchGaps({ endGap: v })} />
+        </fieldset>
         <Num label="Kerf (mm)" hint="Material removed by the saw blade on every cut — real waste." value={project.cut.kerf} onChange={(v) => patchCut({ kerf: v })} />
         <Num label="Min reusable (mm)" hint="Offcuts shorter than this are treated as scrap rather than reusable stock." value={project.cut.minReusableOffcut} onChange={(v) => patchCut({ minReusableOffcut: v })} />
         <Field label="Square lead end" hint="If on, a kerf is also spent squaring the rough leading end of every fresh plank.">
           <input type="checkbox" checked={project.cut.squareLeadingEnd} onChange={(e) => patchCut({ squareLeadingEnd: e.target.checked })} />
         </Field>
-        <Field label="Edge fit">
-          <select value={project.widthFit} onChange={(e) => patch({ widthFit: e.target.value as WidthFit })}>
-            {WIDTH_FITS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
-          </select>
-        </Field>
-        <div className="mode-help">{widthFit.desc}</div>
+        <fieldset className="lockwrap" disabled={locked}>
+          <Field label="Edge fit">
+            <select value={project.widthFit} onChange={(e) => patch({ widthFit: e.target.value as WidthFit })}>
+              {WIDTH_FITS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+            </select>
+          </Field>
+          <div className="mode-help">{widthFit.desc}</div>
+        </fieldset>
 
         <h2>Pattern</h2>
+        <fieldset className="lockwrap" disabled={locked}>
         <Field label="Stagger mode">
           <select value={project.stagger.mode} onChange={(e) => patchStag({ mode: e.target.value as StaggerMode })}>
             {MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
@@ -327,6 +354,7 @@ export function App() {
         <div className="tagline" style={{ textAlign: 'right' }}>
           {project.stagger.wasteVsLooks < 0.4 ? 'favour low waste' : project.stagger.wasteVsLooks > 0.6 ? 'favour looks' : 'balanced'}
         </div>
+        </fieldset>
       </aside>
 
       <Results result={result} endGap={project.gaps.endGap} cut={project.cut} />

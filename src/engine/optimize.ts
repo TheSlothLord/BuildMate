@@ -5,6 +5,7 @@ import type {
   AngledCut,
   BomLine,
   BorderBoard,
+  CutConfig,
   CutInstruction,
   DeckLayout,
   DeckPoint,
@@ -46,6 +47,12 @@ export function optimize(project: Project): Result {
 
   if (stockOptions.length === 0)
     warnings.push('Add at least one plank length — on hand or in the store — to generate a layout.');
+
+  // Locked layout: keep the frozen seam pattern and only re-run the cut-stock
+  // packing against the current stock. Skips the grid/candidate/stagger stages.
+  if (project.lockedLayouts && project.lockedLayouts.length) {
+    return repackLocked(project.lockedLayouts, stockOptions, cut, warnings);
+  }
 
   const layouts: DeckLayout[] = [];
   const demand: DemandPiece[] = [];
@@ -172,7 +179,7 @@ export function optimize(project: Project): Result {
           const cutShape = info ? info.shape : undefined;
           const bays = deck.spacing > 0 ? Math.max(1, Math.round((endPos - startPos) / deck.spacing)) : 1;
           const name = `${deckLetter}(${u.slotIdx + 1},${segBase + i + 1})`;
-          const seg: Segment = { name, startMm: round(startPos), lengthMm, bays, barId: '', reusedOffcut: false, drawStartMm: round(drawStart), drawEndMm: round(drawEnd), cuts: segCuts.length ? segCuts : undefined };
+          const seg: Segment = { name, startMm: round(startPos), lengthMm, bays, barId: '', reusedOffcut: false, drawStartMm: round(drawStart), drawEndMm: round(drawEnd), cuts: segCuts.length ? segCuts : undefined, cutShape };
           segments.push(seg);
           const id = `${deck.id}#${ui}#${i}`;
           // Record the bevel in the cut-list label so angled ends are called out.
@@ -222,7 +229,7 @@ export function optimize(project: Project): Result {
               const info = quadCutInfo(q.map((p) => [p.x, p.y]));
               const bevelled = info != null && info.cuts.length > 0;
               const lengthMm = bevelled ? info!.lengthMm : round(plen);
-              const bb: BorderBoard = { name, lengthMm, x: round(bx), y: round(by), w: round(Math.max(...xs) - bx), h: round(Math.max(...ys) - by), points: pts, barId: '', reusedOffcut: false };
+              const bb: BorderBoard = { name, lengthMm, x: round(bx), y: round(by), w: round(Math.max(...xs) - bx), h: round(Math.max(...ys) - by), points: pts, cuts: bevelled ? info!.cuts : undefined, cutShape: bevelled ? info!.shape : undefined, barId: '', reusedOffcut: false };
               borderBoards.push(bb);
               const idk = `${deck.id}#F#${ring}e${i}#${pi}`;
               demand.push({ id: idk, length: lengthMm, label: name, cuts: bevelled ? info!.cuts : undefined, cutShape: bevelled ? info!.shape : undefined });
@@ -452,7 +459,7 @@ export function optimize(project: Project): Result {
         const info = points ? quadCutInfo(parsePts(points)) : null;
         const bevelled = info != null && info.cuts.length > 0;
         const lengthMm = bevelled ? info!.lengthMm : round(len); // bounding extent for sheared boards
-        const bb: BorderBoard = { name, lengthMm, x: round(x), y: round(y), w: round(w), h: round(h), points, barId: '', reusedOffcut: false };
+        const bb: BorderBoard = { name, lengthMm, x: round(x), y: round(y), w: round(w), h: round(h), points, cuts: bevelled ? info!.cuts : undefined, cutShape: bevelled ? info!.shape : undefined, barId: '', reusedOffcut: false };
         borderBoards.push(bb);
         demand.push({ id: `${deck.id}#F#${idKey}#${pi}`, length: lengthMm, label: name, cuts: bevelled ? info!.cuts : undefined, cutShape: bevelled ? info!.shape : undefined });
         borderIndex.set(`${deck.id}#F#${idKey}#${pi}`, bb);
@@ -671,6 +678,62 @@ export function optimize(project: Project): Result {
   const shoppingList = computeShoppingList(pack.bars, stockOptions);
 
   return { layouts, cutList: pack.bars, bom, shoppingList, stats, warnings };
+}
+
+/**
+ * Re-pack a frozen seam layout against the current stock without touching the
+ * pattern: rebuild the cut demand from the stored segments and border boards,
+ * run only Stage C, and re-attach the chosen stock bars.
+ */
+function repackLocked(
+  locked: DeckLayout[],
+  stockOptions: StockOption[],
+  cut: CutConfig,
+  baseWarnings: string[],
+): Result {
+  const layouts: DeckLayout[] = JSON.parse(JSON.stringify(locked)); // own, mutable copy
+  const demand: DemandPiece[] = [];
+  const segIndex = new Map<string, Segment>();
+  const borderIndex = new Map<string, BorderBoard>();
+
+  layouts.forEach((layout, di) => {
+    layout.rows.forEach((row, ri) => {
+      row.segments.forEach((seg, si) => {
+        seg.barId = '';
+        seg.reusedOffcut = false;
+        const id = `${di}#r${ri}#${si}`;
+        demand.push({ id, length: seg.lengthMm, label: seg.name, cuts: seg.cuts, cutShape: seg.cutShape });
+        segIndex.set(id, seg);
+      });
+    });
+    layout.borderBoards.forEach((bb, bi) => {
+      bb.barId = '';
+      bb.reusedOffcut = false;
+      const id = `${di}#b${bi}`;
+      demand.push({ id, length: bb.lengthMm, label: bb.name, cuts: bb.cuts, cutShape: bb.cutShape });
+      borderIndex.set(id, bb);
+    });
+  });
+
+  const pack = packCutStock(demand, stockOptions, cut);
+  for (const [id, place] of Object.entries(pack.placement)) {
+    const target = segIndex.get(id) ?? borderIndex.get(id);
+    if (target) {
+      target.barId = place.barId;
+      target.reusedOffcut = place.reusedOffcut;
+    }
+  }
+
+  const warnings = [...baseWarnings, ...layouts.flatMap((l) => l.warnings), ...pack.warnings];
+  const stats = computeStats(demand, pack.bars, stockOptions);
+  return {
+    layouts,
+    cutList: pack.bars,
+    bom: computeBom(pack.bars, stockOptions),
+    shoppingList: computeShoppingList(pack.bars, stockOptions),
+    stats,
+    warnings,
+  };
 }
 
 const storePriceOf = (stock: StockOption[], len: number) =>

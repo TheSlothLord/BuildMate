@@ -1,6 +1,6 @@
 <svg viewBox="0 0 860 348" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, Segoe UI, Roboto, sans-serif">
   <rect x="0" y="0" width="860" height="348" rx="10" fill="#14130f"/>
-  <text x="20" y="30" font-size="17" font-weight="700" fill="#ece7da">DeckBuilder — a sample optimized deck plan</text>
+  <text x="20" y="30" font-size="17" font-weight="700" fill="#ece7da">BuildMate — a sample optimized deck plan</text>
 
   <!-- deck outline -->
   <rect x="16" y="46" width="828" height="256" fill="none" stroke="#36322a"/>

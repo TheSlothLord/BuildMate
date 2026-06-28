@@ -1,4 +1,4 @@
-// Domain types for DeckBuilder. All measurements in millimetres.
+// Domain types for the BuildMate deck builder. All measurements in millimetres.
 
 export type mm = number;
 

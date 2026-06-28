@@ -6,6 +6,8 @@ import { Preferences } from '@capacitor/preferences';
 import type { Project } from '../model/types';
 
 const native = Capacitor.isNativePlatform();
+// Storage keys keep the legacy "deckbuilder:" prefix on purpose so projects saved
+// before the BuildMate rename still load (renaming the keys would orphan them).
 const INDEX_KEY = 'deckbuilder:index';
 const itemKey = (name: string) => `deckbuilder:proj:${name}`;
 

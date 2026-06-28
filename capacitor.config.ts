@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.deckbuilder.app',
+  appId: 'com.buildmate.app',
   appName: 'BuildMate',
   webDir: 'dist',
   android: {

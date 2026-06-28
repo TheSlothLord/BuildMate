@@ -137,9 +137,9 @@ warning, sign with an OV/EV code-signing certificate, then set in `package.json`
 under `build.win`: `"signAndEditExecutable": true` and provide the cert via
 `CSC_LINK` / `CSC_KEY_PASSWORD` env vars (electron-builder picks them up).
 
-### Lightweight alternative — `DeckBuilder.cmd`
+### Lightweight alternative — `BuildMate.cmd`
 
-`DeckBuilder.cmd` (in the project root) launches the same app in a browser
+`BuildMate.cmd` (in the project root) launches the same app in a browser
 "app window" without packaging. It needs Node available and leaves a small
 background console while open. Handy during development; the `.exe` is the
 real deliverable.

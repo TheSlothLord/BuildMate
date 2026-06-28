@@ -1,4 +1,4 @@
-# DeckBuilder — Design
+# BuildMate — Design
 
 A browser app that lays out parallel decking planks on one or more rectangular
 decks, snapping every seam to the backing-board (joist) grid, optimizing the cut

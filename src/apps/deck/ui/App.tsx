@@ -92,7 +92,7 @@ export function App({ onHome }: { onHome?: () => void }) {
   // ---- .deck import / export ----
   const exportDeck = () => {
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
-    const name = (project.decks[0]?.label || 'deckbuilder').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase();
+    const name = (project.decks[0]?.label || 'buildmate-deck').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase();
     void saveFile(`${name}.deck`, blob);
   };
   const importDeck = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -103,7 +103,7 @@ export function App({ onHome }: { onHome?: () => void }) {
     reader.onload = () => {
       try {
         const data = JSON.parse(String(reader.result)) as Partial<Project>;
-        if (!Array.isArray(data.decks) || !data.plank || !data.stagger) throw new Error('not a DeckBuilder file');
+        if (!Array.isArray(data.decks) || !data.plank || !data.stagger) throw new Error('not a BuildMate deck file');
         setProject(normalizeProject(data));
       } catch (err) {
         alert(`Could not load this .deck file: ${(err as Error).message}`);

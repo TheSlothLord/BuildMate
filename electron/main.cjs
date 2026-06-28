@@ -1,4 +1,4 @@
-// Electron main process — opens DeckBuilder in its own native window,
+// Electron main process — opens BuildMate in its own native window,
 // loading the static Vite build directly (no local server, no Node dependency).
 const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');

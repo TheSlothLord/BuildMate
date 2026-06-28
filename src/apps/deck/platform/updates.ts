@@ -1,6 +1,6 @@
 // Update check — compares the app's built-in version against the latest GitHub
 // release. Read-only and unauthenticated, so the repo/releases must be public.
-const REPO = 'TheSlothLord/DeckBuilder';
+const REPO = 'TheSlothLord/BuildMate';
 
 export const APP_VERSION = __APP_VERSION__;
 export const RELEASES_URL = `https://github.com/${REPO}/releases`;

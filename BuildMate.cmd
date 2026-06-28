@@ -1,6 +1,6 @@
-@echo off
+﻿@echo off
 setlocal
-title DeckBuilder
+title BuildMate
 set "DECKDIR=%~dp0"
 set "M=#"
 set "M=%M%LAUNCH"
@@ -9,7 +9,7 @@ exit /b %errorlevel%
 
 #LAUNCH
 # ---------------------------------------------------------------------------
-# DeckBuilder launcher (PowerShell section, run by the batch header above).
+# BuildMate launcher (PowerShell section, run by the batch header above).
 # Serves the built app locally and opens it in its own app window.
 # ---------------------------------------------------------------------------
 $ErrorActionPreference = 'Stop'
@@ -25,7 +25,7 @@ $portable = Join-Path $env:LOCALAPPDATA 'node-portable\node-v22.11.0-win-x64'
 if (Test-Path (Join-Path $portable 'node.exe')) { $env:Path = "$portable;$env:Path" }
 $nodeExe = (Get-Command node -ErrorAction SilentlyContinue).Source
 if (-not $nodeExe) {
-  Write-Host 'Node.js was not found. Install Node 18+ from https://nodejs.org, then run DeckBuilder again.' -ForegroundColor Red
+  Write-Host 'Node.js was not found. Install Node 18+ from https://nodejs.org, then run BuildMate again.' -ForegroundColor Red
   Read-Host 'Press Enter to close'
   exit 1
 }
@@ -37,7 +37,7 @@ if (-not (Test-Path (Join-Path $dir 'dist\index.html'))) {
   & npm run build
 }
 
-Write-Host 'Starting DeckBuilder...' -ForegroundColor Cyan
+Write-Host 'Starting BuildMate...' -ForegroundColor Cyan
 $vite   = Join-Path $dir 'node_modules\vite\bin\vite.js'
 $server = Start-Process -FilePath $nodeExe `
   -ArgumentList @("`"$vite`"", 'preview', '--port', "$port", '--strictPort') `
@@ -51,9 +51,9 @@ for ($i = 0; $i -lt 80; $i++) {
 }
 if (-not $ready) { Write-Host 'Server did not start in time.' -ForegroundColor Red }
 
-# Open in its own app window. A dedicated user-data-dir gives DeckBuilder its own
+# Open in its own app window. A dedicated user-data-dir gives BuildMate its own
 # browser process, so the window's lifetime is ours to track and clean up.
-$prof  = Join-Path $env:LOCALAPPDATA 'DeckBuilderApp'
+$prof  = Join-Path $env:LOCALAPPDATA 'BuildMateApp'
 $bargs = "--app=$url --user-data-dir=`"$prof`" --window-size=1300,900 --no-first-run --no-default-browser-check"
 $edge = @(
   "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
@@ -69,12 +69,12 @@ if     ($edge)   { $browser = Start-Process $edge   $bargs -PassThru }
 elseif ($chrome) { $browser = Start-Process $chrome $bargs -PassThru }
 else             { Start-Process $url }  # no Chromium browser -> default browser tab
 
-Write-Host "DeckBuilder is running at $url" -ForegroundColor Green
+Write-Host "BuildMate is running at $url" -ForegroundColor Green
 if ($browser) {
-  Write-Host 'Close the DeckBuilder window to quit.' -ForegroundColor DarkGray
+  Write-Host 'Close the BuildMate window to quit.' -ForegroundColor DarkGray
   Wait-Process -Id $browser.Id
 } else {
-  Read-Host 'Press Enter here to quit DeckBuilder'
+  Read-Host 'Press Enter here to quit BuildMate'
 }
 
 # Shut the server down.

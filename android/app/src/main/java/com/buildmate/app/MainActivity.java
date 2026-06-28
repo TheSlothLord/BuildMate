@@ -1,4 +1,4 @@
-package com.deckbuilder.app;
+package com.buildmate.app;
 
 import com.getcapacitor.BridgeActivity;
 

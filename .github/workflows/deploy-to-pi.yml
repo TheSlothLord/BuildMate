@@ -1,6 +1,6 @@
 name: deploy-to-pi
-# After the `build` workflow succeeds on main, tell the Vector runner (on the Pi)
-# to pull the fresh web-dist artifact and redeploy.
+# After the `build` workflow succeeds on main, tell the Vector runner (on the home
+# server) to pull the fresh web-dist artifact and redeploy.
 on:
   workflow_run:
     workflows: ["build"]

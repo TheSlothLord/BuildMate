@@ -72,9 +72,11 @@ jobs:
           name: BuildMate-windows-zip
           path: release/*.zip
 
-  # On a version tag (vX.Y.Z), publish a GitHub Release with the built binaries.
+  # On a version tag (vX.Y.Z): publish a GitHub Release with the built binaries +
+  # the web bundle, then tell Vector to deploy this exact version. A plain push to
+  # main just runs the build jobs above (CI) — no release, no deploy.
   release:
-    needs: [android, windows]
+    needs: [web, android, windows]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
@@ -87,8 +89,14 @@ jobs:
         with:
           name: BuildMate-windows-zip
           path: dl
+      - uses: actions/download-artifact@v8
+        with:
+          name: web-dist
+          path: web
       - name: Name the APK after the tag
         run: mv dl/app-debug.apk "dl/BuildMate-${{ github.ref_name }}.apk"
+      - name: Bundle the web build for Vector
+        run: tar czf dl/web-dist.tar.gz -C web .
       - uses: softprops/action-gh-release@v3
         with:
           body_path: .github/RELEASE_BODY.md
@@ -97,3 +105,11 @@ jobs:
           files: |
             dl/BuildMate-${{ github.ref_name }}.apk
             dl/*.zip
+            dl/web-dist.tar.gz
+      - name: Tell Vector to deploy this version
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.DEPLOY_DISPATCH_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/TheSlothLord/Vector/dispatches \
+            -d '{"event_type":"deploy-buildmate","client_payload":{"ref":"${{ github.ref_name }}"}}'

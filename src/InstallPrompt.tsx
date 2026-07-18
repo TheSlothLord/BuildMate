@@ -72,7 +72,7 @@ export function InstallPrompt() {
         <span style={{ fontSize: '0.9rem', lineHeight: 1.55, flex: 1, minWidth: '11rem' }}>
           {isIOS()
             ? <>In Safari, tap <b>Share</b> then <b>Add to Home Screen</b> to install BuildMate.</>
-            : <>Open your browser menu (<b>⋮</b>), then tap <b>Install app</b> (or <b>Add to Home screen</b>).</>}
+            : <>Open the menu (<b>⋮</b>) and tap <b>Install app</b> (or <b>Add to Home screen</b>). If you only see <b>Open Vector</b> / no install option, tap <b>Open in Chrome</b> first, then install.</>}
         </span>
         <button style={{ ...yes, marginLeft: 'auto' }} onClick={dismiss}>Got it</button>
       </div>

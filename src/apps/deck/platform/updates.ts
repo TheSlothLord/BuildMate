@@ -8,7 +8,7 @@ export const APP_VERSION = __APP_VERSION__;
 // The BuildMate website (self-hosted). The "update available" notice and the
 // in-app download links point here / to the releases list rather than straight
 // at raw GitHub pages.
-export const SITE_URL = 'https://buildmate.vector.no.eu.org';
+export const SITE_URL = 'https://buildmate.markusmedk.no';
 export const RELEASES_URL = `https://github.com/${REPO}/releases`;
 export const LATEST_RELEASE_URL = `https://github.com/${REPO}/releases/latest`;
 

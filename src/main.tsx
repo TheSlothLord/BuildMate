@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { Capacitor } from '@capacitor/core';
 import { Launcher } from './apps/launcher/Launcher';
 import { App as DeckApp } from './apps/deck/ui/App';
+import { InstallPrompt } from './InstallPrompt';
 import './shared/styles.css';
 
 const routeOf = () => location.hash.replace(/^#\/?/, '');
@@ -23,6 +24,7 @@ function Root() {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <Root />
+    <InstallPrompt />
   </React.StrictMode>,
 );
 

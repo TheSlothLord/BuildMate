@@ -6,6 +6,12 @@ import { App as DeckApp } from './apps/deck/ui/App';
 import { InstallPrompt } from './InstallPrompt';
 import './shared/styles.css';
 
+// Disabled while all Vector apps share one hostname (vector.taile4f8f2.ts.net):
+// Android identifies an installed PWA by host only, so only ONE app per host can
+// install — the Vector portal is that app; BuildMate is used through it in the
+// browser. Flip back to true once BuildMate has its own hostname.
+const SHOW_INSTALL_PROMPT = false;
+
 const routeOf = () => location.hash.replace(/^#\/?/, '');
 
 /** Tiny hash router: '' → launcher, 'deck' → deck builder. */
@@ -24,7 +30,7 @@ function Root() {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <Root />
-    <InstallPrompt />
+    {SHOW_INSTALL_PROMPT && <InstallPrompt />}
   </React.StrictMode>,
 );
 

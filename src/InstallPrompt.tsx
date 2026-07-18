@@ -16,6 +16,8 @@ const isIOS = () =>
   /iphone|ipad|ipod/i.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isElectron = typeof navigator !== 'undefined' && /electron/i.test(navigator.userAgent);
+// Only offer install on phones/tablets — desktop browsers don't need it.
+const isMobile = () => /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent) || isIOS();
 
 type BIP = Event & { prompt: () => void; userChoice: Promise<unknown> };
 
@@ -52,7 +54,7 @@ export function InstallPrompt() {
     else setManual(true);
   };
 
-  if (!ready || isStandalone()) return null;
+  if (!ready || isStandalone() || !isMobile()) return null;
 
   const wrap: CSSProperties = {
     position: 'fixed', left: '0.7rem', right: '0.7rem',

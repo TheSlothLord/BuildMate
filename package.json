@@ -1,6 +1,6 @@
 {
   "name": "buildmate",
-  "version": "1.9.8",
+  "version": "1.9.9",
   "private": true,
   "type": "module",
   "description": "BuildMate — layout & cut-list tools for building projects (deck builder and more)",

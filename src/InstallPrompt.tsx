@@ -57,13 +57,16 @@ export function InstallPrompt() {
   if (!ready || isStandalone() || !isMobile()) return null;
 
   const wrap: CSSProperties = {
-    position: 'fixed', left: '0.7rem', right: '0.7rem',
-    bottom: 'calc(0.7rem + env(safe-area-inset-bottom))', zIndex: 80,
-    display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
-    padding: '0.75rem 0.9rem', borderRadius: 14, background: '#1c1a15',
-    border: '1px solid #3a352b', boxShadow: '0 14px 40px -12px #000',
+    position: 'fixed', left: '50%', transform: 'translateX(-50%)',
+    top: 'calc(env(safe-area-inset-top) + 10px)', zIndex: 80,
+    width: 'calc(100% - 24px)', maxWidth: 420,
+    display: 'flex', flexDirection: 'column', gap: '0.75rem',
+    padding: '14px 16px', borderRadius: 14, background: '#1c1a15',
+    border: '1.5px solid #e8782f', boxShadow: '0 16px 44px rgba(0,0,0,.6)',
     color: '#f0ece3', fontFamily: 'system-ui, sans-serif',
+    animation: 'bm-slidedown .3s ease',
   };
+  const kf = <style>{'@keyframes bm-slidedown{from{opacity:0;transform:translate(-50%,-12px)}to{opacity:1;transform:translate(-50%,0)}}'}</style>;
   const btn: CSSProperties = { font: 'inherit', fontSize: '0.85rem', padding: '0.45rem 0.8rem', borderRadius: 9, cursor: 'pointer' };
   const no: CSSProperties = { ...btn, border: '1px solid #3a352b', background: 'transparent', color: '#f0ece3' };
   const yes: CSSProperties = { ...btn, border: 0, fontWeight: 600, background: '#e8782f', color: '#1a1206' };
@@ -71,20 +74,24 @@ export function InstallPrompt() {
   if (manual) {
     return (
       <div style={wrap} role="dialog">
-        <span style={{ fontSize: '0.9rem', lineHeight: 1.55, flex: 1, minWidth: '11rem' }}>
+        {kf}
+        <span style={{ fontSize: '0.9rem', lineHeight: 1.55 }}>
           {isIOS()
             ? <>In Safari, tap <b>Share</b> then <b>Add to Home Screen</b> to install BuildMate.</>
             : <>Open the menu (<b>⋮</b>) and tap <b>Install app</b> (or <b>Add to Home screen</b>). If you only see <b>Open Vector</b> / no install option, tap <b>Open in Chrome</b> first, then install.</>}
         </span>
-        <button style={{ ...yes, marginLeft: 'auto' }} onClick={dismiss}>Got it</button>
+        <button style={{ ...yes, alignSelf: 'flex-end' }} onClick={dismiss}>Got it</button>
       </div>
     );
   }
   return (
     <div style={wrap} role="dialog">
-      <img src="./buildmate-icon.svg" alt="" style={{ width: '2rem', height: '2rem', borderRadius: 8, flex: '0 0 auto' }} />
-      <span style={{ flex: 1, minWidth: '11rem', fontSize: '0.95rem' }}>Add BuildMate to your home screen?</span>
-      <span style={{ display: 'flex', gap: '0.5rem', marginLeft: 'auto' }}>
+      {kf}
+      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.95rem' }}>
+        <img src="./buildmate-icon.svg" alt="" style={{ width: '2rem', height: '2rem', borderRadius: 8, flex: '0 0 auto' }} />
+        Add BuildMate to your home screen?
+      </span>
+      <span style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
         <button style={no} onClick={dismiss}>Not now</button>
         <button style={yes} onClick={add}>Add</button>
       </span>
